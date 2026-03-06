@@ -1,0 +1,1232 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>TradeDOC - Trade Finance Document Manager</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+<script>
+tailwind.config = {
+  theme: {
+    extend: {
+      fontFamily: { sans: ['Inter', 'sans-serif'] },
+      colors: {
+        brand: { 50:'#eff6ff',100:'#dbeafe',200:'#bfdbfe',300:'#93c5fd',400:'#60a5fa',500:'#3b82f6',600:'#2563eb',700:'#1d4ed8',800:'#1e40af',900:'#1e3a8a' }
+      }
+    }
+  }
+}
+</script>
+<style>
+  ::-webkit-scrollbar { width: 5px; }
+  ::-webkit-scrollbar-track { background: #f1f5f9; }
+  ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 3px; }
+  .fade-in { animation: fadeIn 0.3s ease-out; }
+  @keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+  .tab-active { background: white; box-shadow: 0 1px 3px rgba(0,0,0,0.08); color: #1e293b; }
+  canvas.pdf-page { max-width: 100%; height: auto !important; box-shadow: 0 4px 12px rgba(0,0,0,0.1); border-radius: 4px; }
+  .drop-zone.dragover { border-color: #3b82f6; background: #eff6ff; }
+</style>
+</head>
+<body class="font-sans bg-gray-50 text-gray-800 antialiased">
+
+<div id="app" class="flex h-screen overflow-hidden">
+  <!-- Sidebar -->
+  <aside id="sidebar" class="w-64 bg-white border-r border-gray-200 flex flex-col flex-shrink-0 z-30 fixed inset-y-0 left-0 transform -translate-x-full lg:translate-x-0 lg:static transition-transform duration-200">
+    <div class="flex items-center gap-3 h-16 px-5 border-b border-gray-200 flex-shrink-0">
+      <div class="w-9 h-9 bg-brand-600 rounded-lg flex items-center justify-center">
+        <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+      </div>
+      <div>
+        <h1 class="text-base font-bold text-gray-900 leading-tight">TradeDOC</h1>
+        <p class="text-[10px] text-gray-400 uppercase tracking-wider">Trade Finance Manager</p>
+      </div>
+    </div>
+    <nav class="flex-1 p-3 space-y-0.5" id="nav">
+      <button onclick="navigate('dashboard')" data-nav="dashboard" class="nav-btn w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-gray-600 hover:bg-gray-50 transition-colors">
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path d="M3.75 6A2.25 2.25 0 016 3.75h2.25A2.25 2.25 0 0110.5 6v2.25a2.25 2.25 0 01-2.25 2.25H6a2.25 2.25 0 01-2.25-2.25V6zm0 9.75A2.25 2.25 0 016 13.5h2.25a2.25 2.25 0 012.25 2.25V18a2.25 2.25 0 01-2.25 2.25H6A2.25 2.25 0 013.75 18v-2.25zm9.75-9.75A2.25 2.25 0 0115.75 3.75H18A2.25 2.25 0 0120.25 6v2.25A2.25 2.25 0 0118 10.5h-2.25a2.25 2.25 0 01-2.25-2.25V6zm0 9.75a2.25 2.25 0 012.25-2.25H18a2.25 2.25 0 012.25 2.25V18A2.25 2.25 0 0118 20.25h-2.25a2.25 2.25 0 01-2.25-2.25v-2.25z"/></svg>
+        Dashboard
+      </button>
+      <button onclick="navigate('upload')" data-nav="upload" class="nav-btn w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-gray-600 hover:bg-gray-50 transition-colors">
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5"/></svg>
+        Upload
+      </button>
+      <button onclick="navigate('documents')" data-nav="documents" class="nav-btn w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-gray-600 hover:bg-gray-50 transition-colors">
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z"/></svg>
+        Documents
+      </button>
+      <button onclick="navigate('training')" data-nav="training" class="nav-btn w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-gray-600 hover:bg-gray-50 transition-colors">
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path d="M4.26 10.147a60.436 60.436 0 00-.491 6.347A48.627 48.627 0 0112 20.904a48.627 48.627 0 018.232-4.41 60.46 60.46 0 00-.491-6.347m-15.482 0a50.57 50.57 0 00-2.658-.813A59.905 59.905 0 0112 3.493a59.902 59.902 0 0110.399 5.84c-.896.248-1.783.52-2.658.814m-15.482 0A50.697 50.697 0 0112 13.489a50.702 50.702 0 017.74-3.342M6.75 15a.75.75 0 100-1.5.75.75 0 000 1.5zm0 0v-3.675A55.378 55.378 0 0112 8.443m-7.007 11.55A5.981 5.981 0 006.75 15.75v-1.5"/></svg>
+        Training
+      </button>
+      <button onclick="navigate('price-variance')" data-nav="price-variance" class="nav-btn w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-gray-600 hover:bg-gray-50 transition-colors">
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path d="M2.25 18L9 11.25l4.306 4.307a11.95 11.95 0 015.814-5.519l2.74-1.22m0 0l-5.94-2.28m5.94 2.28l-2.28 5.941"/></svg>
+        Price Variance
+      </button>
+    </nav>
+    <div class="p-4 border-t border-gray-100 flex-shrink-0">
+      <div class="bg-gradient-to-r from-brand-50 to-blue-50 rounded-lg p-3">
+        <p class="text-xs font-semibold text-brand-700">Trade Finance AI</p>
+        <p class="text-[10px] text-brand-500 mt-0.5">Classify &bull; Extract &bull; Analyze</p>
+      </div>
+    </div>
+  </aside>
+
+  <!-- Mobile overlay -->
+  <div id="mobile-overlay" class="fixed inset-0 bg-black/40 z-20 hidden lg:hidden" onclick="toggleSidebar()"></div>
+
+  <!-- Main content -->
+  <div class="flex-1 flex flex-col overflow-hidden">
+    <header class="h-14 bg-white border-b border-gray-200 flex items-center px-4 lg:px-6 flex-shrink-0">
+      <button onclick="toggleSidebar()" class="lg:hidden p-2 -ml-2 mr-2 rounded-lg hover:bg-gray-100">
+        <svg class="w-5 h-5 text-gray-600" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5"/></svg>
+      </button>
+      <h2 id="page-title" class="text-sm font-semibold text-gray-700"></h2>
+    </header>
+    <main id="main-content" class="flex-1 overflow-y-auto p-4 lg:p-6"></main>
+  </div>
+</div>
+
+<script>
+// ===================== PDF.js Setup =====================
+pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+window.pdfjsLib = pdfjsLib;
+
+// ===================== Data Store =====================
+const STORAGE_KEY = 'tradedoc_data';
+
+function loadStore() {
+  try {
+    const data = localStorage.getItem(STORAGE_KEY);
+    return data ? JSON.parse(data) : { documents: [], training: null };
+  } catch { return { documents: [], training: null }; }
+}
+function saveStore(store) {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(store));
+}
+window.appStore = loadStore();
+if (!window.appStore.training) {
+  window.appStore.training = getDefaultTraining();
+  saveStore(window.appStore);
+}
+
+// ===================== Default Training Data =====================
+function getDefaultTraining() {
+  return {
+    documentTypes: [
+      { id:'commercial_invoice', name:'Commercial Invoice', keywords:['invoice','invoice number','inv no','commercial invoice','bill to','ship to','unit price','total amount','payment terms','incoterms','fob','cif','cfr'], patterns:['invoice\\s*(no|number|#)','total\\s*amount','unit\\s*price','grand\\s*total'] },
+      { id:'bill_of_lading', name:'Bill of Lading', keywords:['bill of lading','b/l','bl number','shipper','consignee','notify party','vessel','voyage','port of loading','port of discharge','container no','seal no','freight'], patterns:['bill\\s*of\\s*lading','b\\/l\\s*(no|number)','port\\s*of\\s*(loading|discharge)','container\\s*(no|number)'] },
+      { id:'letter_of_credit', name:'Letter of Credit', keywords:['letter of credit','l/c','lc number','documentary credit','irrevocable','issuing bank','advising bank','beneficiary','applicant','credit amount','expiry date','swift','mt700'], patterns:['letter\\s*of\\s*credit','documentary\\s*credit','l\\/c\\s*(no|number)','issuing\\s*bank'] },
+      { id:'certificate_of_origin', name:'Certificate of Origin', keywords:['certificate of origin','country of origin','manufactured in','produced in','chamber of commerce','goods originating','preferential','form a','gsp'], patterns:['certificate\\s*of\\s*origin','country\\s*of\\s*origin','goods\\s*originating'] },
+      { id:'packing_list', name:'Packing List', keywords:['packing list','carton','gross weight','net weight','dimensions','cbm','cubic meter','package','marks and numbers','measurement'], patterns:['packing\\s*list','gross\\s*weight','net\\s*weight','marks\\s*and\\s*numbers'] },
+      { id:'insurance_certificate', name:'Insurance Certificate', keywords:['insurance','insurance certificate','insurance policy','insured','underwriter','premium','coverage','marine insurance','all risks','loss or damage'], patterns:['insurance\\s*(certificate|policy)','marine\\s*insurance','all\\s*risks'] },
+      { id:'bill_of_exchange', name:'Bill of Exchange', keywords:['bill of exchange','draft','pay to the order','drawer','drawee','payee','at sight','days after sight','acceptance','tenor'], patterns:['bill\\s*of\\s*exchange','pay\\s*to\\s*the\\s*order','at\\s*sight'] },
+      { id:'customs_declaration', name:'Customs Declaration', keywords:['customs','customs declaration','import declaration','export declaration','hs code','harmonized','tariff','duty','customs value','clearance'], patterns:['customs\\s*declaration','hs\\s*code','harmonized\\s*system'] },
+      { id:'inspection_certificate', name:'Inspection Certificate', keywords:['inspection certificate','inspection report','quality inspection','pre-shipment','surveyor','sgs','bureau veritas','intertek','conforms'], patterns:['inspection\\s*(certificate|report)','pre-shipment\\s*inspection'] },
+      { id:'warehouse_receipt', name:'Warehouse Receipt', keywords:['warehouse receipt','warehouse','storage','depositor','warehouseman','lot number','storage charges'], patterns:['warehouse\\s*receipt','storage\\s*charges'] }
+    ]
+  };
+}
+
+// ===================== Classifier =====================
+window.classifyPage = function(text) {
+  const training = window.appStore.training;
+  const lower = text.toLowerCase();
+  const scores = [];
+
+  for (const dt of training.documentTypes) {
+    let score = 0;
+    const matched = [];
+    for (const kw of dt.keywords) {
+      if (lower.includes(kw.toLowerCase())) { score += 2; matched.push(kw); }
+    }
+    for (const p of dt.patterns) {
+      try { if (new RegExp(p, 'i').test(text)) score += 3; } catch {}
+    }
+    if (score > 0) scores.push({ typeId: dt.id, typeName: dt.name, score, matchedKeywords: matched });
+  }
+
+  scores.sort((a, b) => b.score - a.score);
+  if (scores.length === 0) return { typeId:'unclassified', typeName:'Unclassified', confidence:0, matchedKeywords:[] };
+
+  const conf = Math.min(0.99, scores[0].score / Math.max(10, scores[0].score * 1.5));
+  if (conf < 0.15) return { typeId:'unclassified', typeName:'Unclassified', confidence: conf, matchedKeywords: scores[0].matchedKeywords };
+
+  return { ...scores[0], confidence: conf };
+};
+
+// ===================== Extractor =====================
+const extractionRules = {
+  commercial_invoice: [
+    { name:'invoiceNumber', label:'Invoice Number', patterns:[/invoice\s*(?:no|number|#)[.:;\s]*([A-Z0-9\-\/]+)/i] },
+    { name:'date', label:'Date', patterns:[/(?:date|dated)[.:;\s]*(\d{1,2}[\/-]\d{1,2}[\/-]\d{2,4})/i, /(\d{1,2}\s+(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\s+\d{2,4})/i] },
+    { name:'seller', label:'Seller/Exporter', patterns:[/(?:seller|exporter|from|shipper)[.:;\s]*([^\n]{5,60})/i] },
+    { name:'buyer', label:'Buyer/Importer', patterns:[/(?:buyer|importer|bill\s*to|sold\s*to|consignee)[.:;\s]*([^\n]{5,60})/i] },
+    { name:'currency', label:'Currency', patterns:[/(USD|EUR|GBP|JPY|CNY|INR|AED|SGD)/i] },
+    { name:'totalAmount', label:'Total Amount', patterns:[/(?:total|grand\s*total|amount\s*due|net\s*amount)[.:;\s]*(?:USD|EUR|GBP|JPY|CNY|INR)?\s*([0-9,]+\.?\d*)/i] },
+    { name:'paymentTerms', label:'Payment Terms', patterns:[/(?:payment\s*terms?|terms\s*of\s*payment)[.:;\s]*([^\n]{5,80})/i] },
+    { name:'incoterms', label:'Incoterms', patterns:[/((?:FOB|CIF|CFR|EXW|DDP|DAP|FCA|CPT|CIP)\s+[A-Za-z\s,]+)/i] },
+  ],
+  bill_of_lading: [
+    { name:'blNumber', label:'B/L Number', patterns:[/(?:b\/l|bill\s*of\s*lading)\s*(?:no|number|#)?[.:;\s]*([A-Z0-9\-\/]+)/i] },
+    { name:'shipper', label:'Shipper', patterns:[/shipper[.:;\s]*([^\n]{5,80})/i] },
+    { name:'consignee', label:'Consignee', patterns:[/consignee[.:;\s]*([^\n]{5,80})/i] },
+    { name:'vessel', label:'Vessel Name', patterns:[/(?:vessel|ship|mv|m\.v\.)[.:;\s]*([^\n]{5,50})/i] },
+    { name:'portOfLoading', label:'Port of Loading', patterns:[/(?:port\s*of\s*loading|pol)[.:;\s]*([^\n]{5,50})/i] },
+    { name:'portOfDischarge', label:'Port of Discharge', patterns:[/(?:port\s*of\s*discharge|pod)[.:;\s]*([^\n]{5,50})/i] },
+    { name:'containerNo', label:'Container No', patterns:[/(?:container)\s*(?:no|number)?[.:;\s]*([A-Z]{4}\d{7})/i] },
+  ],
+  letter_of_credit: [
+    { name:'lcNumber', label:'L/C Number', patterns:[/(?:l\/c|lc|credit)\s*(?:no|number|#)?[.:;\s]*([A-Z0-9\-\/]+)/i] },
+    { name:'issuingBank', label:'Issuing Bank', patterns:[/issuing\s*bank[.:;\s]*([^\n]{5,80})/i] },
+    { name:'beneficiary', label:'Beneficiary', patterns:[/beneficiary[.:;\s]*([^\n]{5,80})/i] },
+    { name:'applicant', label:'Applicant', patterns:[/applicant[.:;\s]*([^\n]{5,80})/i] },
+    { name:'amount', label:'Credit Amount', patterns:[/(?:amount|credit\s*amount|value)[.:;\s]*(?:USD|EUR|GBP)?\s*([0-9,]+\.?\d*)/i] },
+    { name:'expiryDate', label:'Expiry Date', patterns:[/(?:expiry|expiration|valid\s*until)[.:;\s]*(\d{1,2}[\/-]\d{1,2}[\/-]\d{2,4})/i] },
+  ],
+  certificate_of_origin: [
+    { name:'certNumber', label:'Certificate No', patterns:[/(?:cert|certificate)\s*(?:no|number|#)?[.:;\s]*([A-Z0-9\-\/]+)/i] },
+    { name:'exporter', label:'Exporter', patterns:[/(?:exporter|seller)[.:;\s]*([^\n]{5,80})/i] },
+    { name:'countryOfOrigin', label:'Country of Origin', patterns:[/(?:country\s*of\s*origin|origin)[.:;\s]*([^\n]{3,40})/i] },
+    { name:'hsCode', label:'HS Code', patterns:[/(?:hs\s*code|tariff)[.:;\s]*(\d{4,10})/i] },
+  ],
+  packing_list: [
+    { name:'totalPackages', label:'Total Packages', patterns:[/(?:total\s*packages?|total\s*cartons?)[.:;\s]*(\d+)/i] },
+    { name:'grossWeight', label:'Gross Weight', patterns:[/(?:gross\s*weight|g\.?w\.?)[.:;\s]*([0-9,]+\.?\d*)\s*(?:kg|mt|tons?)?/i] },
+    { name:'netWeight', label:'Net Weight', patterns:[/(?:net\s*weight|n\.?w\.?)[.:;\s]*([0-9,]+\.?\d*)\s*(?:kg|mt|tons?)?/i] },
+    { name:'volume', label:'Volume (CBM)', patterns:[/(?:volume|cbm|cubic\s*meter)[.:;\s]*([0-9,]+\.?\d*)/i] },
+  ],
+  insurance_certificate: [
+    { name:'policyNumber', label:'Policy No', patterns:[/(?:policy|certificate)\s*(?:no|number|#)?[.:;\s]*([A-Z0-9\-\/]+)/i] },
+    { name:'insuredValue', label:'Insured Value', patterns:[/(?:insured\s*value|sum\s*insured)[.:;\s]*(?:USD|EUR|GBP)?\s*([0-9,]+\.?\d*)/i] },
+    { name:'coverageType', label:'Coverage', patterns:[/(?:coverage|risk\s*covered)[.:;\s]*([^\n]{5,80})/i] },
+  ],
+  bill_of_exchange: [
+    { name:'amount', label:'Amount', patterns:[/(?:amount|sum\s*of|pay)[.:;\s]*(?:USD|EUR|GBP)?\s*([0-9,]+\.?\d*)/i] },
+    { name:'tenor', label:'Tenor', patterns:[/(?:at\s*sight|\d+\s*days?\s*(?:after\s*sight|after\s*date))/i] },
+  ],
+  customs_declaration: [
+    { name:'entryNumber', label:'Entry No', patterns:[/(?:entry|declaration)\s*(?:no|number|#)?[.:;\s]*([A-Z0-9\-\/]+)/i] },
+    { name:'hsCode', label:'HS Code', patterns:[/(?:hs\s*code|tariff)[.:;\s]*(\d{4,10})/i] },
+    { name:'dutyAmount', label:'Duty Amount', patterns:[/(?:duty|customs\s*duty)[.:;\s]*(?:USD|EUR|GBP)?\s*([0-9,]+\.?\d*)/i] },
+  ],
+  inspection_certificate: [
+    { name:'certNumber', label:'Certificate No', patterns:[/(?:cert|certificate|report)\s*(?:no|number|#)?[.:;\s]*([A-Z0-9\-\/]+)/i] },
+    { name:'inspector', label:'Inspector', patterns:[/(?:inspector|surveyor)[.:;\s]*([^\n]{5,80})/i] },
+    { name:'result', label:'Result', patterns:[/(?:result|finding|conclusion)[.:;\s]*(pass|fail|conform|satisfactory|[^\n]{5,60})/i] },
+  ],
+  warehouse_receipt: [
+    { name:'receiptNumber', label:'Receipt No', patterns:[/(?:receipt|warehouse\s*receipt)\s*(?:no|number|#)?[.:;\s]*([A-Z0-9\-\/]+)/i] },
+    { name:'location', label:'Location', patterns:[/(?:location|warehouse|stored\s*at)[.:;\s]*([^\n]{5,80})/i] },
+    { name:'quantity', label:'Quantity', patterns:[/(?:quantity|qty)[.:;\s]*([0-9,]+\.?\d*)/i] },
+  ]
+};
+
+window.extractData = function(text, typeId) {
+  const rules = extractionRules[typeId];
+  if (!rules) return {};
+  const result = {};
+  for (const field of rules) {
+    for (const pattern of field.patterns) {
+      const match = text.match(pattern);
+      if (match) { result[field.name] = { label: field.label, value: (match[1] || match[0]).trim() }; break; }
+    }
+  }
+  return result;
+};
+
+// ===================== Price Data =====================
+window.priceData = {
+  commodities: [
+    { id:'steel_pipes', name:'Steel Pipes', hsCode:'7304', unit:'MT', refPrice:850, prices:[
+      {country:'China',avg:720,min:650,max:800,trend:'stable'},{country:'India',avg:780,min:700,max:860,trend:'rising'},{country:'Turkey',avg:830,min:780,max:900,trend:'stable'},{country:'Germany',avg:1050,min:950,max:1150,trend:'falling'},{country:'USA',avg:1100,min:1000,max:1200,trend:'rising'},{country:'Japan',avg:980,min:900,max:1060,trend:'stable'},{country:'South Korea',avg:870,min:800,max:950,trend:'rising'}
+    ]},
+    { id:'crude_oil', name:'Crude Oil', hsCode:'2709', unit:'BBL', refPrice:78, prices:[
+      {country:'Saudi Arabia',avg:72,min:65,max:80,trend:'stable'},{country:'UAE',avg:74,min:68,max:82,trend:'stable'},{country:'Iraq',avg:70,min:62,max:78,trend:'falling'},{country:'Russia',avg:68,min:60,max:76,trend:'falling'},{country:'USA',avg:80,min:72,max:88,trend:'rising'},{country:'Nigeria',avg:76,min:70,max:84,trend:'stable'}
+    ]},
+    { id:'cotton_raw', name:'Raw Cotton', hsCode:'5201', unit:'MT', refPrice:2200, prices:[
+      {country:'India',avg:1950,min:1800,max:2100,trend:'rising'},{country:'USA',avg:2400,min:2200,max:2600,trend:'stable'},{country:'Brazil',avg:2100,min:1900,max:2300,trend:'rising'},{country:'China',avg:2300,min:2100,max:2500,trend:'stable'},{country:'Pakistan',avg:1900,min:1700,max:2100,trend:'falling'}
+    ]},
+    { id:'rice', name:'Rice (Long Grain)', hsCode:'1006', unit:'MT', refPrice:520, prices:[
+      {country:'India',avg:420,min:380,max:460,trend:'rising'},{country:'Thailand',avg:510,min:470,max:550,trend:'stable'},{country:'Vietnam',avg:480,min:440,max:520,trend:'rising'},{country:'Pakistan',avg:440,min:400,max:480,trend:'stable'},{country:'USA',avg:620,min:570,max:670,trend:'stable'}
+    ]},
+    { id:'electronics', name:'Electronic Components', hsCode:'8542', unit:'KG', refPrice:45, prices:[
+      {country:'China',avg:35,min:28,max:42,trend:'falling'},{country:'Taiwan',avg:48,min:40,max:56,trend:'stable'},{country:'South Korea',avg:52,min:44,max:60,trend:'rising'},{country:'Japan',avg:55,min:48,max:62,trend:'stable'},{country:'Germany',avg:60,min:52,max:68,trend:'stable'}
+    ]},
+    { id:'textiles', name:'Textiles & Fabrics', hsCode:'5208', unit:'MT', refPrice:3200, prices:[
+      {country:'China',avg:2800,min:2500,max:3100,trend:'stable'},{country:'India',avg:2600,min:2300,max:2900,trend:'rising'},{country:'Bangladesh',avg:2400,min:2100,max:2700,trend:'rising'},{country:'Vietnam',avg:2700,min:2400,max:3000,trend:'stable'},{country:'Turkey',avg:3100,min:2800,max:3400,trend:'stable'}
+    ]},
+    { id:'copper', name:'Copper Cathode', hsCode:'7403', unit:'MT', refPrice:8500, prices:[
+      {country:'Chile',avg:8200,min:7800,max:8600,trend:'rising'},{country:'Peru',avg:8100,min:7700,max:8500,trend:'stable'},{country:'China',avg:8600,min:8200,max:9000,trend:'rising'},{country:'Congo',avg:7900,min:7500,max:8300,trend:'stable'},{country:'Australia',avg:8400,min:8000,max:8800,trend:'stable'}
+    ]},
+    { id:'palm_oil', name:'Palm Oil', hsCode:'1511', unit:'MT', refPrice:950, prices:[
+      {country:'Indonesia',avg:880,min:820,max:940,trend:'rising'},{country:'Malaysia',avg:920,min:860,max:980,trend:'stable'},{country:'Thailand',avg:960,min:900,max:1020,trend:'stable'},{country:'Colombia',avg:1000,min:940,max:1060,trend:'rising'}
+    ]}
+  ],
+  tradeFlows: [
+    {commodity:'Steel Pipes',exporter:'China',importer:'USA',vol:50000,price:740,period:'2025-Q4'},
+    {commodity:'Steel Pipes',exporter:'India',importer:'UAE',vol:30000,price:790,period:'2025-Q4'},
+    {commodity:'Steel Pipes',exporter:'Turkey',importer:'Germany',vol:20000,price:850,period:'2025-Q4'},
+    {commodity:'Steel Pipes',exporter:'Japan',importer:'USA',vol:15000,price:990,period:'2026-Q1'},
+    {commodity:'Crude Oil',exporter:'Saudi Arabia',importer:'India',vol:500000,price:73,period:'2025-Q4'},
+    {commodity:'Crude Oil',exporter:'UAE',importer:'Japan',vol:300000,price:75,period:'2025-Q4'},
+    {commodity:'Crude Oil',exporter:'Iraq',importer:'India',vol:400000,price:71,period:'2026-Q1'},
+    {commodity:'Raw Cotton',exporter:'India',importer:'Bangladesh',vol:80000,price:1980,period:'2025-Q4'},
+    {commodity:'Raw Cotton',exporter:'USA',importer:'China',vol:120000,price:2380,period:'2025-Q4'},
+    {commodity:'Raw Cotton',exporter:'Brazil',importer:'China',vol:70000,price:2150,period:'2026-Q1'},
+    {commodity:'Rice (Long Grain)',exporter:'India',importer:'UAE',vol:200000,price:430,period:'2025-Q4'},
+    {commodity:'Rice (Long Grain)',exporter:'Thailand',importer:'USA',vol:100000,price:520,period:'2025-Q4'},
+    {commodity:'Electronic Components',exporter:'China',importer:'USA',vol:15000,price:36,period:'2025-Q4'},
+    {commodity:'Electronic Components',exporter:'Taiwan',importer:'Germany',vol:8000,price:49,period:'2025-Q4'},
+    {commodity:'Textiles & Fabrics',exporter:'Bangladesh',importer:'USA',vol:40000,price:2450,period:'2025-Q4'},
+    {commodity:'Textiles & Fabrics',exporter:'China',importer:'EU',vol:60000,price:2850,period:'2025-Q4'},
+    {commodity:'Copper Cathode',exporter:'Chile',importer:'China',vol:90000,price:8250,period:'2025-Q4'},
+    {commodity:'Copper Cathode',exporter:'Peru',importer:'China',vol:60000,price:8150,period:'2026-Q1'},
+    {commodity:'Palm Oil',exporter:'Indonesia',importer:'India',vol:200000,price:890,period:'2025-Q4'},
+    {commodity:'Palm Oil',exporter:'Malaysia',importer:'China',vol:150000,price:930,period:'2025-Q4'},
+  ]
+};
+
+// ===================== Navigation =====================
+window.currentPage = 'dashboard';
+window.currentDocId = null;
+
+window.navigate = function(page, docId) {
+  window.currentPage = page;
+  window.currentDocId = docId || null;
+  document.querySelectorAll('.nav-btn').forEach(btn => {
+    const nav = btn.dataset.nav;
+    btn.classList.toggle('bg-brand-50', nav === page || (page === 'document-detail' && nav === 'documents'));
+    btn.classList.toggle('text-brand-700', nav === page || (page === 'document-detail' && nav === 'documents'));
+    btn.classList.toggle('text-gray-600', nav !== page && !(page === 'document-detail' && nav === 'documents'));
+  });
+  // Close mobile sidebar
+  document.getElementById('sidebar').classList.add('-translate-x-full');
+  document.getElementById('mobile-overlay').classList.add('hidden');
+  renderPage();
+};
+
+window.toggleSidebar = function() {
+  const sb = document.getElementById('sidebar');
+  const ov = document.getElementById('mobile-overlay');
+  sb.classList.toggle('-translate-x-full');
+  ov.classList.toggle('hidden');
+};
+
+// ===================== Rendering =====================
+window.renderPage = function() {
+  const mc = document.getElementById('main-content');
+  const titles = { dashboard:'Dashboard', upload:'Upload Document', documents:'Documents', training:'Training Center', 'price-variance':'Price Variance Analysis', 'document-detail':'Document Details' };
+  document.getElementById('page-title').textContent = titles[window.currentPage] || '';
+
+  switch (window.currentPage) {
+    case 'dashboard': renderDashboard(mc); break;
+    case 'upload': renderUpload(mc); break;
+    case 'documents': renderDocuments(mc); break;
+    case 'document-detail': renderDocumentDetail(mc); break;
+    case 'training': renderTraining(mc); break;
+    case 'price-variance': renderPriceVariance(mc); break;
+  }
+};
+
+// ===================== Dashboard =====================
+function renderDashboard(el) {
+  const docs = window.appStore.documents;
+  const totalDocs = docs.length;
+  const totalPages = docs.reduce((s,d) => s + d.totalPages, 0);
+  let classified = 0, unclassified = 0;
+  const typeCounts = {};
+  for (const doc of docs) {
+    for (const p of doc.pages) {
+      if (p.classification.typeId === 'unclassified') unclassified++;
+      else { classified++; typeCounts[p.classification.typeName] = (typeCounts[p.classification.typeName]||0)+1; }
+    }
+  }
+
+  el.innerHTML = `
+    <div class="fade-in space-y-6">
+      <div class="flex items-center justify-between flex-wrap gap-3">
+        <div><h1 class="text-2xl font-bold text-gray-900">Dashboard</h1><p class="text-sm text-gray-500 mt-0.5">Overview of your trade finance documents</p></div>
+        <button onclick="navigate('upload')" class="bg-brand-600 hover:bg-brand-700 text-white font-medium px-4 py-2 rounded-lg text-sm flex items-center gap-2 transition-colors">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M12 4.5v15m7.5-7.5h-15"/></svg>
+          Upload Document
+        </button>
+      </div>
+
+      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-5 flex items-start gap-4">
+          <div class="w-11 h-11 rounded-xl bg-brand-50 flex items-center justify-center flex-shrink-0"><svg class="w-5 h-5 text-brand-600" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z"/></svg></div>
+          <div><p class="text-sm text-gray-500">Documents</p><p class="text-2xl font-bold text-gray-900">${totalDocs}</p><p class="text-xs text-gray-400">${totalPages} total pages</p></div>
+        </div>
+        <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-5 flex items-start gap-4">
+          <div class="w-11 h-11 rounded-xl bg-green-50 flex items-center justify-center flex-shrink-0"><svg class="w-5 h-5 text-green-600" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg></div>
+          <div><p class="text-sm text-gray-500">Classified</p><p class="text-2xl font-bold text-gray-900">${classified}</p><p class="text-xs text-gray-400">pages classified</p></div>
+        </div>
+        <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-5 flex items-start gap-4">
+          <div class="w-11 h-11 rounded-xl bg-yellow-50 flex items-center justify-center flex-shrink-0"><svg class="w-5 h-5 text-yellow-600" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z"/></svg></div>
+          <div><p class="text-sm text-gray-500">Unclassified</p><p class="text-2xl font-bold text-gray-900">${unclassified}</p><p class="text-xs text-gray-400">needs review</p></div>
+        </div>
+        <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-5 flex items-start gap-4">
+          <div class="w-11 h-11 rounded-xl bg-purple-50 flex items-center justify-center flex-shrink-0"><svg class="w-5 h-5 text-purple-600" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path d="M9.568 3H5.25A2.25 2.25 0 003 5.25v4.318c0 .597.237 1.17.659 1.591l9.581 9.581c.699.699 1.78.872 2.607.33a18.095 18.095 0 005.223-5.223c.542-.827.369-1.908-.33-2.607L11.16 3.66A2.25 2.25 0 009.568 3z"/><path d="M6 6h.008v.008H6V6z"/></svg></div>
+          <div><p class="text-sm text-gray-500">Doc Types</p><p class="text-2xl font-bold text-gray-900">${Object.keys(typeCounts).length}</p><p class="text-xs text-gray-400">types found</p></div>
+        </div>
+      </div>
+
+      <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-5">
+          <h3 class="text-sm font-semibold text-gray-900 mb-4">Classification Distribution</h3>
+          <div style="height:280px" class="flex items-center justify-center">
+            ${Object.keys(typeCounts).length > 0 ? '<canvas id="chart-pie"></canvas>' : '<p class="text-sm text-gray-400">Upload documents to see distribution</p>'}
+          </div>
+        </div>
+        <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-5">
+          <h3 class="text-sm font-semibold text-gray-900 mb-4">Pages by Type</h3>
+          <div style="height:280px" class="flex items-center justify-center">
+            ${Object.keys(typeCounts).length > 0 ? '<canvas id="chart-bar"></canvas>' : '<p class="text-sm text-gray-400">No data available yet</p>'}
+          </div>
+        </div>
+      </div>
+
+      <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-5">
+        <div class="flex items-center justify-between mb-4">
+          <h3 class="text-sm font-semibold text-gray-900">Recent Documents</h3>
+          <button onclick="navigate('documents')" class="text-xs text-brand-600 hover:text-brand-700 font-medium">View all &rarr;</button>
+        </div>
+        ${docs.length > 0 ? docs.slice(-5).reverse().map(d => `
+          <button onclick="navigate('document-detail','${d.id}')" class="w-full flex items-center justify-between py-2.5 px-2 -mx-2 rounded-lg hover:bg-gray-50 transition-colors border-b border-gray-50 last:border-0 text-left">
+            <div class="flex items-center gap-3">
+              <div class="w-8 h-8 bg-brand-50 rounded-lg flex items-center justify-center"><svg class="w-4 h-4 text-brand-600" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z"/></svg></div>
+              <div><p class="text-sm font-medium text-gray-900">${d.filename}</p><p class="text-xs text-gray-400">${d.totalPages} pages</p></div>
+            </div>
+            <span class="text-xs text-gray-400">${new Date(d.uploadDate).toLocaleDateString()}</span>
+          </button>
+        `).join('') : '<p class="text-sm text-gray-400 text-center py-6">No documents uploaded yet</p>'}
+      </div>
+    </div>
+  `;
+
+  // Render charts
+  if (Object.keys(typeCounts).length > 0) {
+    const colors = ['#3b82f6','#22c55e','#f59e0b','#ef4444','#8b5cf6','#06b6d4','#ec4899','#f97316','#14b8a6','#6366f1'];
+    const labels = Object.keys(typeCounts);
+    const values = Object.values(typeCounts);
+
+    setTimeout(() => {
+      const pieEl = document.getElementById('chart-pie');
+      const barEl = document.getElementById('chart-bar');
+      if (pieEl) new Chart(pieEl, { type:'doughnut', data:{ labels, datasets:[{ data:values, backgroundColor:colors.slice(0,labels.length), borderWidth:0 }] }, options:{ responsive:true, maintainAspectRatio:false, plugins:{ legend:{ position:'right', labels:{ font:{size:11}, padding:8 } } } } });
+      if (barEl) new Chart(barEl, { type:'bar', data:{ labels, datasets:[{ label:'Pages', data:values, backgroundColor:colors.slice(0,labels.length), borderRadius:4 }] }, options:{ responsive:true, maintainAspectRatio:false, indexAxis:'y', plugins:{ legend:{display:false} }, scales:{ x:{ grid:{display:false} }, y:{ ticks:{font:{size:10}} } } } });
+    }, 50);
+  }
+}
+
+// ===================== Upload =====================
+function renderUpload(el) {
+  el.innerHTML = `
+    <div class="fade-in max-w-2xl mx-auto space-y-6">
+      <div><h1 class="text-2xl font-bold text-gray-900">Upload Document</h1><p class="text-sm text-gray-500 mt-1">Upload a multipage trade finance PDF for classification and data extraction</p></div>
+
+      <div id="drop-zone" class="drop-zone bg-white rounded-xl shadow-sm border-2 border-dashed border-gray-200 p-12 text-center cursor-pointer hover:border-brand-300 hover:bg-gray-50 transition-all">
+        <div class="flex flex-col items-center gap-3">
+          <div class="w-16 h-16 bg-gray-100 rounded-2xl flex items-center justify-center">
+            <svg class="w-8 h-8 text-gray-400" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5"/></svg>
+          </div>
+          <div><p class="text-sm font-medium text-gray-700">Drop PDF file here or <span class="text-brand-600">click to browse</span></p><p class="text-xs text-gray-400 mt-1">Supports multipage PDF documents</p></div>
+        </div>
+        <input type="file" id="file-input" accept=".pdf,application/pdf" class="hidden">
+      </div>
+
+      <div id="file-info" class="hidden bg-white rounded-xl shadow-sm border border-green-200 p-4">
+        <div class="flex items-center gap-3">
+          <div class="w-10 h-10 bg-green-50 rounded-xl flex items-center justify-center"><svg class="w-5 h-5 text-green-600" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z"/></svg></div>
+          <div class="flex-1"><p id="file-name" class="text-sm font-semibold text-gray-900"></p><p id="file-size" class="text-xs text-gray-500"></p></div>
+          <button onclick="clearFile()" class="text-xs text-red-500 hover:text-red-600">Remove</button>
+        </div>
+      </div>
+
+      <button id="upload-btn" onclick="processFile()" class="hidden w-full bg-brand-600 hover:bg-brand-700 text-white font-medium py-3 rounded-lg transition-colors flex items-center justify-center gap-2">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5"/></svg>
+        Upload & Process Document
+      </button>
+
+      <div id="progress-bar" class="hidden w-full bg-gray-200 rounded-full h-2"><div id="progress-fill" class="bg-brand-600 h-2 rounded-full transition-all duration-300" style="width:0%"></div></div>
+      <div id="upload-result"></div>
+
+      <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-5">
+        <h3 class="text-sm font-semibold text-gray-900 mb-3">Supported Document Types</h3>
+        <div class="grid grid-cols-2 md:grid-cols-3 gap-2">
+          ${window.appStore.training.documentTypes.map(dt => `
+            <div class="flex items-center gap-2 text-xs text-gray-600 bg-gray-50 rounded-lg px-3 py-2">
+              <svg class="w-3 h-3 text-green-500 flex-shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+              ${dt.name}
+            </div>
+          `).join('')}
+        </div>
+      </div>
+    </div>
+  `;
+
+  const dropZone = document.getElementById('drop-zone');
+  const fileInput = document.getElementById('file-input');
+
+  dropZone.addEventListener('click', () => fileInput.click());
+  dropZone.addEventListener('dragover', (e) => { e.preventDefault(); dropZone.classList.add('dragover'); });
+  dropZone.addEventListener('dragleave', () => dropZone.classList.remove('dragover'));
+  dropZone.addEventListener('drop', (e) => { e.preventDefault(); dropZone.classList.remove('dragover'); handleFile(e.dataTransfer.files[0]); });
+  fileInput.addEventListener('change', (e) => handleFile(e.target.files[0]));
+}
+
+window.selectedFile = null;
+window.selectedPdfData = null;
+
+function handleFile(file) {
+  if (!file || file.type !== 'application/pdf') { alert('Please select a PDF file'); return; }
+  window.selectedFile = file;
+  document.getElementById('drop-zone').classList.add('hidden');
+  document.getElementById('file-info').classList.remove('hidden');
+  document.getElementById('upload-btn').classList.remove('hidden');
+  document.getElementById('file-name').textContent = file.name;
+  document.getElementById('file-size').textContent = (file.size / 1024 / 1024).toFixed(2) + ' MB';
+}
+
+window.clearFile = function() {
+  window.selectedFile = null;
+  document.getElementById('drop-zone').classList.remove('hidden');
+  document.getElementById('file-info').classList.add('hidden');
+  document.getElementById('upload-btn').classList.add('hidden');
+  document.getElementById('upload-result').innerHTML = '';
+};
+
+window.processFile = async function() {
+  if (!window.selectedFile) return;
+  const btn = document.getElementById('upload-btn');
+  const progress = document.getElementById('progress-bar');
+  const fill = document.getElementById('progress-fill');
+  const result = document.getElementById('upload-result');
+
+  btn.disabled = true;
+  btn.innerHTML = '<svg class="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg> Processing...';
+  progress.classList.remove('hidden');
+
+  try {
+    const arrayBuffer = await window.selectedFile.arrayBuffer();
+    fill.style.width = '30%';
+
+    const pdf = await window.pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+    fill.style.width = '50%';
+
+    const pages = [];
+    for (let i = 1; i <= pdf.numPages; i++) {
+      const page = await pdf.getPage(i);
+      const textContent = await page.getTextContent();
+      const text = textContent.items.map(item => item.str).join(' ');
+
+      const classification = window.classifyPage(text);
+      const extractedData = classification.typeId !== 'unclassified' ? window.extractData(text, classification.typeId) : {};
+
+      pages.push({ pageNum: i, text: text.substring(0, 5000), classification, extractedData });
+      fill.style.width = (50 + (i / pdf.numPages) * 45) + '%';
+    }
+
+    // Store the PDF as base64 for later viewing
+    const base64 = btoa(new Uint8Array(arrayBuffer).reduce((s, b) => s + String.fromCharCode(b), ''));
+
+    const doc = {
+      id: 'doc_' + Date.now() + '_' + Math.random().toString(36).substr(2, 6),
+      filename: window.selectedFile.name,
+      uploadDate: new Date().toISOString(),
+      totalPages: pdf.numPages,
+      fileSize: window.selectedFile.size,
+      pdfBase64: base64,
+      pages
+    };
+
+    window.appStore.documents.push(doc);
+    saveStore(window.appStore);
+    fill.style.width = '100%';
+
+    result.innerHTML = `
+      <div class="bg-white rounded-xl shadow-sm border border-green-200 p-5 mt-4 fade-in">
+        <div class="flex items-center gap-3 mb-4">
+          <svg class="w-6 h-6 text-green-600" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+          <div><p class="font-semibold text-green-800">Document Processed Successfully</p><p class="text-sm text-green-600">${doc.filename} - ${doc.totalPages} pages analyzed</p></div>
+        </div>
+        <div class="space-y-2">
+          ${pages.map(p => `
+            <div class="flex items-center justify-between bg-gray-50 rounded-lg p-3">
+              <div class="flex items-center gap-3">
+                <span class="w-7 h-7 bg-green-100 rounded flex items-center justify-center text-xs font-bold text-green-700">${p.pageNum}</span>
+                <div><p class="text-sm font-medium text-gray-900">${p.classification.typeName}</p><p class="text-xs text-gray-400">${Object.keys(p.extractedData).length} fields extracted</p></div>
+              </div>
+              ${p.classification.typeId !== 'unclassified'
+                ? `<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">${(p.classification.confidence*100).toFixed(0)}%</span>`
+                : '<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">Needs Training</span>'}
+            </div>
+          `).join('')}
+        </div>
+        <div class="flex gap-3 mt-4">
+          <button onclick="navigate('document-detail','${doc.id}')" class="flex-1 bg-brand-600 hover:bg-brand-700 text-white font-medium py-2 rounded-lg text-sm transition-colors">View Details</button>
+          <button onclick="clearFile();renderUpload(document.getElementById('main-content'))" class="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-700 font-medium py-2 rounded-lg text-sm transition-colors">Upload Another</button>
+        </div>
+      </div>
+    `;
+  } catch (err) {
+    result.innerHTML = `<div class="bg-red-50 text-red-600 rounded-lg p-3 mt-4 text-sm">${err.message}</div>`;
+  }
+
+  btn.classList.add('hidden');
+};
+
+// ===================== Documents List =====================
+function renderDocuments(el) {
+  const docs = window.appStore.documents;
+  el.innerHTML = `
+    <div class="fade-in space-y-6">
+      <div class="flex items-center justify-between flex-wrap gap-3">
+        <div><h1 class="text-2xl font-bold text-gray-900">Documents</h1><p class="text-sm text-gray-500 mt-0.5">${docs.length} documents uploaded</p></div>
+        <button onclick="navigate('upload')" class="bg-brand-600 hover:bg-brand-700 text-white font-medium px-4 py-2 rounded-lg text-sm transition-colors">Upload New</button>
+      </div>
+      <div class="flex items-center gap-3"><input type="text" id="doc-search" placeholder="Search documents..." class="flex-1 max-w-sm px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-brand-500 outline-none text-sm" oninput="filterDocs()"></div>
+      <div id="doc-list" class="space-y-3">
+        ${docs.length > 0 ? docs.slice().reverse().map(d => docCard(d)).join('') : `
+          <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-12 text-center">
+            <svg class="w-12 h-12 text-gray-300 mx-auto mb-3" fill="none" stroke="currentColor" stroke-width="1" viewBox="0 0 24 24"><path d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z"/></svg>
+            <p class="text-sm text-gray-500">No documents uploaded yet</p>
+            <button onclick="navigate('upload')" class="bg-brand-600 hover:bg-brand-700 text-white font-medium px-4 py-2 rounded-lg text-sm mt-3 transition-colors">Upload Document</button>
+          </div>
+        `}
+      </div>
+    </div>
+  `;
+}
+
+function docCard(d) {
+  const classified = d.pages.filter(p => p.classification.typeId !== 'unclassified').length;
+  const unclassified = d.pages.filter(p => p.classification.typeId === 'unclassified').length;
+  const types = [...new Set(d.pages.map(p => p.classification.typeName).filter(t => t !== 'Unclassified'))];
+  return `
+    <div class="doc-card bg-white rounded-xl shadow-sm border border-gray-100 p-4 flex items-center gap-4 hover:shadow-md hover:border-brand-200 transition-all cursor-pointer" data-name="${d.filename.toLowerCase()}" onclick="navigate('document-detail','${d.id}')">
+      <div class="w-11 h-11 bg-brand-50 rounded-xl flex items-center justify-center flex-shrink-0"><svg class="w-5 h-5 text-brand-600" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z"/></svg></div>
+      <div class="flex-1 min-w-0">
+        <p class="text-sm font-semibold text-gray-900 truncate">${d.filename}</p>
+        <p class="text-xs text-gray-400 mt-0.5">${d.totalPages} pages &bull; ${new Date(d.uploadDate).toLocaleDateString()}</p>
+        <div class="flex items-center gap-1.5 mt-1.5 flex-wrap">
+          ${types.slice(0,3).map(t => `<span class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium bg-blue-100 text-blue-800">${t}</span>`).join('')}
+          ${unclassified > 0 ? `<span class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium bg-yellow-100 text-yellow-800">${unclassified} unclassified</span>` : ''}
+        </div>
+      </div>
+      <div class="flex items-center gap-2 flex-shrink-0">
+        <div class="text-right hidden sm:block">
+          <div class="flex items-center gap-1 text-xs"><svg class="w-3 h-3 text-green-500" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg><span class="text-green-600 font-medium">${classified}</span></div>
+        </div>
+        <button onclick="event.stopPropagation();deleteDoc('${d.id}')" class="p-2 text-gray-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0"/></svg>
+        </button>
+        <svg class="w-4 h-4 text-gray-300" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path d="M8.25 4.5l7.5 7.5-7.5 7.5"/></svg>
+      </div>
+    </div>
+  `;
+}
+
+window.filterDocs = function() {
+  const q = document.getElementById('doc-search').value.toLowerCase();
+  document.querySelectorAll('.doc-card').forEach(card => {
+    card.style.display = card.dataset.name.includes(q) ? '' : 'none';
+  });
+};
+
+window.deleteDoc = function(id) {
+  if (!confirm('Delete this document?')) return;
+  window.appStore.documents = window.appStore.documents.filter(d => d.id !== id);
+  saveStore(window.appStore);
+  renderDocuments(document.getElementById('main-content'));
+};
+
+// ===================== Document Detail =====================
+window.activePageNum = 1;
+
+function renderDocumentDetail(el) {
+  const doc = window.appStore.documents.find(d => d.id === window.currentDocId);
+  if (!doc) { el.innerHTML = '<p class="text-gray-500">Document not found</p>'; return; }
+
+  const page = doc.pages.find(p => p.pageNum === window.activePageNum) || doc.pages[0];
+  if (!page) return;
+  window.activePageNum = page.pageNum;
+  const isClassified = page.classification.typeId !== 'unclassified';
+  const types = window.appStore.training.documentTypes;
+
+  el.innerHTML = `
+    <div class="fade-in space-y-4">
+      <div class="flex items-center gap-3">
+        <button onclick="navigate('documents')" class="p-2 hover:bg-gray-100 rounded-lg transition-colors"><svg class="w-5 h-5 text-gray-500" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path d="M10.5 19.5L3 12m0 0l7.5-7.5M3 12h18"/></svg></button>
+        <div class="flex-1 min-w-0"><h1 class="text-lg font-bold text-gray-900 truncate">${doc.filename}</h1><p class="text-xs text-gray-400">${doc.totalPages} pages | ${new Date(doc.uploadDate).toLocaleDateString()}</p></div>
+      </div>
+
+      <!-- Page tabs -->
+      <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-3">
+        <div class="flex items-center gap-2 overflow-x-auto pb-1">
+          ${doc.pages.map(p => `
+            <button onclick="window.activePageNum=${p.pageNum};renderDocumentDetail(document.getElementById('main-content'))" class="flex-shrink-0 flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium transition-all ${
+              window.activePageNum === p.pageNum ? 'bg-brand-600 text-white shadow-sm'
+              : p.classification.typeId === 'unclassified' ? 'bg-yellow-50 text-yellow-700 hover:bg-yellow-100' : 'bg-gray-50 text-gray-600 hover:bg-gray-100'}">
+              <svg class="w-3 h-3" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="${p.classification.typeId !== 'unclassified' ? 'M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z' : 'M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z'}"/></svg>
+              P${p.pageNum}
+            </button>
+          `).join('')}
+        </div>
+      </div>
+
+      <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <!-- PDF Preview -->
+        <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-5">
+          <div class="flex items-center justify-between mb-3">
+            <h3 class="text-sm font-semibold text-gray-900">Preview - Page ${page.pageNum}</h3>
+            <div class="flex items-center gap-1">
+              <button onclick="window.activePageNum=Math.max(1,window.activePageNum-1);renderDocumentDetail(document.getElementById('main-content'))" ${page.pageNum<=1?'disabled':''} class="p-1 hover:bg-gray-100 rounded disabled:opacity-30"><svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M15.75 19.5L8.25 12l7.5-7.5"/></svg></button>
+              <span class="text-xs text-gray-500 px-2">${page.pageNum} / ${doc.totalPages}</span>
+              <button onclick="window.activePageNum=Math.min(${doc.totalPages},window.activePageNum+1);renderDocumentDetail(document.getElementById('main-content'))" ${page.pageNum>=doc.totalPages?'disabled':''} class="p-1 hover:bg-gray-100 rounded disabled:opacity-30"><svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M8.25 4.5l7.5 7.5-7.5 7.5"/></svg></button>
+            </div>
+          </div>
+          <div class="bg-gray-100 rounded-lg overflow-auto max-h-[550px] flex items-start justify-center p-2">
+            <canvas id="pdf-canvas" class="pdf-page"></canvas>
+          </div>
+        </div>
+
+        <!-- Right panel -->
+        <div class="space-y-4">
+          <!-- Classification -->
+          <div class="bg-white rounded-xl shadow-sm border ${isClassified ? 'border-green-200' : 'border-yellow-200'} p-5">
+            <div class="flex items-center gap-3 mb-3">
+              <div class="w-10 h-10 rounded-xl flex items-center justify-center ${isClassified ? 'bg-green-50' : 'bg-yellow-50'}">
+                <svg class="w-5 h-5 ${isClassified ? 'text-green-600' : 'text-yellow-600'}" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path d="M9.568 3H5.25A2.25 2.25 0 003 5.25v4.318c0 .597.237 1.17.659 1.591l9.581 9.581c.699.699 1.78.872 2.607.33a18.095 18.095 0 005.223-5.223c.542-.827.369-1.908-.33-2.607L11.16 3.66A2.25 2.25 0 009.568 3z"/><path d="M6 6h.008v.008H6V6z"/></svg>
+              </div>
+              <div class="flex-1">
+                <p class="text-sm font-semibold text-gray-900">${page.classification.typeName}</p>
+                <p class="text-xs text-gray-400">${isClassified ? 'Confidence: '+(page.classification.confidence*100).toFixed(0)+'%' : 'This page needs classification'}</p>
+              </div>
+              <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${isClassified ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'}">${isClassified ? 'Classified' : 'Unclassified'}</span>
+            </div>
+            <div class="flex items-center gap-2 pt-3 border-t border-gray-100">
+              <select id="reclassify-select" class="flex-1 px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-brand-500 outline-none bg-white">
+                <option value="">${isClassified ? 'Reclassify as...' : 'Classify as...'}</option>
+                ${types.map(dt => `<option value="${dt.id}">${dt.name}</option>`).join('')}
+              </select>
+              <button onclick="reclassifyCurrentPage()" class="bg-brand-600 hover:bg-brand-700 text-white font-medium px-4 py-2 rounded-lg text-sm transition-colors">Apply</button>
+            </div>
+          </div>
+
+          <!-- Extracted data -->
+          ${Object.keys(page.extractedData).length > 0 ? `
+            <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-5">
+              <h3 class="text-sm font-semibold text-gray-900 mb-3">Extracted Data</h3>
+              <div class="space-y-2">
+                ${Object.entries(page.extractedData).map(([k,v]) => `
+                  <div class="flex items-start justify-between py-2 border-b border-gray-50 last:border-0">
+                    <span class="text-xs text-gray-500 flex-shrink-0 mr-3">${v.label}</span>
+                    <span class="text-xs font-medium text-gray-900 text-right">${typeof v.value === 'string' ? v.value : JSON.stringify(v.value)}</span>
+                  </div>
+                `).join('')}
+              </div>
+            </div>
+          ` : ''}
+
+          <!-- Raw text -->
+          <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-5">
+            <h3 class="text-sm font-semibold text-gray-900 mb-3">Raw Text</h3>
+            <pre class="text-xs text-gray-600 bg-gray-50 rounded-lg p-3 max-h-48 overflow-auto whitespace-pre-wrap font-mono">${page.text || 'No text extracted'}</pre>
+          </div>
+        </div>
+      </div>
+    </div>
+  `;
+
+  // Render PDF page
+  renderPdfPage(doc, page.pageNum);
+}
+
+async function renderPdfPage(doc, pageNum) {
+  try {
+    const raw = atob(doc.pdfBase64);
+    const arr = new Uint8Array(raw.length);
+    for (let i = 0; i < raw.length; i++) arr[i] = raw.charCodeAt(i);
+
+    const pdf = await window.pdfjsLib.getDocument({ data: arr }).promise;
+    const page = await pdf.getPage(pageNum);
+    const canvas = document.getElementById('pdf-canvas');
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    const viewport = page.getViewport({ scale: 1.3 });
+    canvas.width = viewport.width;
+    canvas.height = viewport.height;
+    await page.render({ canvasContext: ctx, viewport }).promise;
+  } catch (err) {
+    console.error('PDF render error:', err);
+  }
+}
+
+window.reclassifyCurrentPage = function() {
+  const typeId = document.getElementById('reclassify-select').value;
+  if (!typeId) return;
+
+  const doc = window.appStore.documents.find(d => d.id === window.currentDocId);
+  if (!doc) return;
+  const page = doc.pages.find(p => p.pageNum === window.activePageNum);
+  if (!page) return;
+
+  const dt = window.appStore.training.documentTypes.find(d => d.id === typeId);
+  page.classification = { typeId, typeName: dt.name, confidence: 1.0, matchedKeywords: ['manual'] };
+  page.extractedData = window.extractData(page.text, typeId);
+
+  // Auto-train: learn keywords from this page
+  const words = page.text.toLowerCase().split(/\s+/).filter(w => w.length > 3);
+  const freq = {};
+  words.forEach(w => { freq[w] = (freq[w]||0)+1; });
+  const topWords = Object.entries(freq).sort((a,b) => b[1]-a[1]).slice(0,8).map(([w]) => w).filter(w => !dt.keywords.includes(w));
+  dt.keywords.push(...topWords);
+
+  saveStore(window.appStore);
+  renderDocumentDetail(document.getElementById('main-content'));
+};
+
+// ===================== Training =====================
+function renderTraining(el) {
+  const types = window.appStore.training.documentTypes;
+  const docs = window.appStore.documents;
+  const unclassified = [];
+  for (const doc of docs) {
+    for (const p of doc.pages) {
+      if (p.classification.typeId === 'unclassified') unclassified.push({ docId: doc.id, docName: doc.filename, pageNum: p.pageNum });
+    }
+  }
+
+  el.innerHTML = `
+    <div class="fade-in space-y-6">
+      <div class="flex items-center justify-between flex-wrap gap-3">
+        <div><h1 class="text-2xl font-bold text-gray-900">Training Center</h1><p class="text-sm text-gray-500 mt-0.5">Train the classifier and manage document types</p></div>
+        <button onclick="document.getElementById('add-type-form').classList.toggle('hidden')" class="bg-brand-600 hover:bg-brand-700 text-white font-medium px-4 py-2 rounded-lg text-sm flex items-center gap-2 transition-colors">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M12 4.5v15m7.5-7.5h-15"/></svg>
+          Add Document Type
+        </button>
+      </div>
+
+      <div id="training-message"></div>
+
+      ${unclassified.length > 0 ? `
+        <div class="bg-white rounded-xl shadow-sm border border-yellow-200 bg-yellow-50/50 p-5">
+          <div class="flex items-center gap-2 mb-4">
+            <svg class="w-5 h-5 text-yellow-600" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z"/></svg>
+            <h3 class="text-sm font-semibold text-yellow-800">${unclassified.length} Unclassified Pages</h3>
+          </div>
+          <div class="space-y-2">
+            ${unclassified.map((u,i) => `
+              <div class="bg-white rounded-lg p-3 border border-yellow-100 flex items-center gap-3">
+                <span class="w-8 h-8 bg-yellow-100 rounded flex items-center justify-center text-xs font-bold text-yellow-700">P${u.pageNum}</span>
+                <div class="flex-1 min-w-0"><p class="text-sm font-medium text-gray-900 truncate">${u.docName}</p><p class="text-xs text-gray-400">Page ${u.pageNum}</p></div>
+                <select onchange="trainClassify('${u.docId}',${u.pageNum},this.value)" class="px-2 py-1 border border-gray-300 rounded-lg text-xs bg-white">
+                  <option value="">Classify as...</option>
+                  ${types.map(dt => `<option value="${dt.id}">${dt.name}</option>`).join('')}
+                </select>
+                <button onclick="navigate('document-detail','${u.docId}')" class="text-xs text-brand-600 hover:text-brand-700 whitespace-nowrap">View</button>
+              </div>
+            `).join('')}
+          </div>
+        </div>
+      ` : ''}
+
+      <!-- Add type form -->
+      <div id="add-type-form" class="hidden bg-white rounded-xl shadow-sm border border-brand-200 p-5">
+        <h3 class="text-sm font-semibold text-gray-900 mb-4">Add New Document Type</h3>
+        <div class="space-y-3">
+          <div><label class="text-xs font-medium text-gray-600 block mb-1">Type ID (snake_case)</label><input id="new-type-id" type="text" placeholder="e.g., proforma_invoice" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-brand-500 outline-none"></div>
+          <div><label class="text-xs font-medium text-gray-600 block mb-1">Display Name</label><input id="new-type-name" type="text" placeholder="e.g., Proforma Invoice" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-brand-500 outline-none"></div>
+          <div><label class="text-xs font-medium text-gray-600 block mb-1">Keywords (comma-separated)</label><textarea id="new-type-keywords" placeholder="proforma, pro-forma, preliminary" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-brand-500 outline-none" rows="2"></textarea></div>
+          <div class="flex gap-2">
+            <button onclick="addNewType()" class="bg-brand-600 hover:bg-brand-700 text-white font-medium px-4 py-2 rounded-lg text-sm transition-colors">Add Type</button>
+            <button onclick="document.getElementById('add-type-form').classList.add('hidden')" class="bg-gray-100 hover:bg-gray-200 text-gray-700 font-medium px-4 py-2 rounded-lg text-sm transition-colors">Cancel</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Document types -->
+      <div>
+        <h3 class="text-sm font-semibold text-gray-900 mb-3">Document Types (${types.length})</h3>
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+          ${types.map(dt => `
+            <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-4 hover:shadow-md transition-all">
+              <div class="flex items-center gap-2 mb-1">
+                <svg class="w-4 h-4 text-brand-500" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path d="M9.568 3H5.25A2.25 2.25 0 003 5.25v4.318c0 .597.237 1.17.659 1.591l9.581 9.581c.699.699 1.78.872 2.607.33a18.095 18.095 0 005.223-5.223c.542-.827.369-1.908-.33-2.607L11.16 3.66A2.25 2.25 0 009.568 3z"/></svg>
+                <p class="text-sm font-semibold text-gray-900">${dt.name}</p>
+              </div>
+              <p class="text-xs text-gray-400 font-mono mb-2">${dt.id}</p>
+              <p class="text-[10px] text-gray-400">${dt.keywords.length} keywords</p>
+              <div class="mt-2 pt-2 border-t border-gray-50">
+                <div id="kw-form-${dt.id}" class="hidden space-y-2 mb-2">
+                  <input id="kw-input-${dt.id}" type="text" placeholder="Add keywords, comma-separated" class="w-full px-2 py-1 border border-gray-300 rounded text-xs">
+                  <div class="flex gap-1">
+                    <button onclick="addKeywords('${dt.id}')" class="bg-brand-600 text-white px-2 py-1 rounded text-xs">Add</button>
+                    <button onclick="document.getElementById('kw-form-${dt.id}').classList.add('hidden')" class="bg-gray-100 text-gray-600 px-2 py-1 rounded text-xs">Cancel</button>
+                  </div>
+                </div>
+                <button onclick="document.getElementById('kw-form-${dt.id}').classList.toggle('hidden')" class="text-xs text-brand-600 hover:text-brand-700 flex items-center gap-1">
+                  <svg class="w-3 h-3" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M12 4.5v15m7.5-7.5h-15"/></svg>
+                  Add Keywords
+                </button>
+              </div>
+            </div>
+          `).join('')}
+        </div>
+      </div>
+
+      <div class="bg-gradient-to-r from-brand-50 to-blue-50 rounded-xl border border-brand-100 p-5">
+        <h3 class="text-sm font-semibold text-brand-900 mb-2">How Training Works</h3>
+        <ul class="text-xs text-brand-700 space-y-1.5">
+          <li class="flex items-start gap-2"><span class="w-4 h-4 bg-brand-200 rounded-full flex items-center justify-center text-[10px] font-bold text-brand-800 flex-shrink-0 mt-0.5">1</span>Classify unclassified pages - the system auto-learns keywords from the content.</li>
+          <li class="flex items-start gap-2"><span class="w-4 h-4 bg-brand-200 rounded-full flex items-center justify-center text-[10px] font-bold text-brand-800 flex-shrink-0 mt-0.5">2</span>Manually add keywords and patterns to improve classification accuracy.</li>
+          <li class="flex items-start gap-2"><span class="w-4 h-4 bg-brand-200 rounded-full flex items-center justify-center text-[10px] font-bold text-brand-800 flex-shrink-0 mt-0.5">3</span>Create new document types for trade documents not yet supported.</li>
+          <li class="flex items-start gap-2"><span class="w-4 h-4 bg-brand-200 rounded-full flex items-center justify-center text-[10px] font-bold text-brand-800 flex-shrink-0 mt-0.5">4</span>Future uploads automatically benefit from improved training data.</li>
+        </ul>
+      </div>
+    </div>
+  `;
+}
+
+window.addNewType = function() {
+  const id = document.getElementById('new-type-id').value.trim().toLowerCase().replace(/\s+/g,'_');
+  const name = document.getElementById('new-type-name').value.trim();
+  const kw = document.getElementById('new-type-keywords').value.split(',').map(k=>k.trim().toLowerCase()).filter(Boolean);
+  if (!id || !name) { alert('ID and name are required'); return; }
+  if (window.appStore.training.documentTypes.find(d=>d.id===id)) { alert('Type already exists'); return; }
+  window.appStore.training.documentTypes.push({ id, name, keywords: kw, patterns: [] });
+  saveStore(window.appStore);
+  showMsg('training-message', 'success', `Document type "${name}" added!`);
+  renderTraining(document.getElementById('main-content'));
+};
+
+window.addKeywords = function(typeId) {
+  const input = document.getElementById('kw-input-'+typeId);
+  const kws = input.value.split(',').map(k=>k.trim().toLowerCase()).filter(Boolean);
+  if (kws.length === 0) return;
+  const dt = window.appStore.training.documentTypes.find(d=>d.id===typeId);
+  if (!dt) return;
+  kws.forEach(k => { if (!dt.keywords.includes(k)) dt.keywords.push(k); });
+  saveStore(window.appStore);
+  showMsg('training-message', 'success', `${kws.length} keywords added to ${dt.name}!`);
+  renderTraining(document.getElementById('main-content'));
+};
+
+window.trainClassify = function(docId, pageNum, typeId) {
+  if (!typeId) return;
+  const doc = window.appStore.documents.find(d=>d.id===docId);
+  if (!doc) return;
+  const page = doc.pages.find(p=>p.pageNum===pageNum);
+  if (!page) return;
+  const dt = window.appStore.training.documentTypes.find(d=>d.id===typeId);
+  if (!dt) return;
+
+  page.classification = { typeId, typeName: dt.name, confidence: 1.0, matchedKeywords: ['manual'] };
+  page.extractedData = window.extractData(page.text, typeId);
+
+  // Auto-train
+  const words = page.text.toLowerCase().split(/\s+/).filter(w => w.length > 3);
+  const freq = {};
+  words.forEach(w => { freq[w] = (freq[w]||0)+1; });
+  const topWords = Object.entries(freq).sort((a,b)=>b[1]-a[1]).slice(0,8).map(([w])=>w).filter(w=>!dt.keywords.includes(w));
+  dt.keywords.push(...topWords);
+
+  saveStore(window.appStore);
+  showMsg('training-message', 'success', `Page classified as ${dt.name} and ${topWords.length} keywords learned!`);
+  renderTraining(document.getElementById('main-content'));
+};
+
+function showMsg(containerId, type, text) {
+  const c = document.getElementById(containerId);
+  if (!c) return;
+  c.innerHTML = `<div class="flex items-center gap-2 p-3 rounded-lg text-sm mb-2 ${type==='success'?'bg-green-50 text-green-700':'bg-red-50 text-red-700'} fade-in">
+    <svg class="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="${type==='success'?'M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z':'M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z'}"/></svg>
+    ${text}
+    <button onclick="this.parentElement.remove()" class="ml-auto"><svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M6 18L18 6M6 6l12 12"/></svg></button>
+  </div>`;
+  setTimeout(() => { if (c.firstChild) c.firstChild.remove(); }, 5000);
+}
+
+// ===================== Price Variance =====================
+window.selectedCommodityId = null;
+window.pvAnalysis = null;
+
+function renderPriceVariance(el) {
+  const comms = window.priceData.commodities;
+  if (!window.selectedCommodityId) window.selectedCommodityId = comms[0]?.id;
+  const selected = comms.find(c => c.id === window.selectedCommodityId);
+  if (!selected) return;
+
+  const trades = window.priceData.tradeFlows.filter(t => t.commodity === selected.name);
+
+  el.innerHTML = `
+    <div class="fade-in space-y-6">
+      <div><h1 class="text-2xl font-bold text-gray-900">Price Variance Analysis</h1><p class="text-sm text-gray-500 mt-1">Compare commodity prices across countries and analyze trade data</p></div>
+
+      <!-- Commodity selector -->
+      <div class="flex items-center gap-2 overflow-x-auto pb-2">
+        ${comms.map(c => `
+          <button onclick="window.selectedCommodityId='${c.id}';window.pvAnalysis=null;renderPriceVariance(document.getElementById('main-content'))" class="flex-shrink-0 px-4 py-2.5 rounded-xl text-sm font-medium transition-all ${window.selectedCommodityId===c.id ? 'bg-brand-600 text-white shadow-md' : 'bg-white text-gray-600 hover:bg-gray-50 border border-gray-200'}">
+            ${c.name}
+          </button>
+        `).join('')}
+      </div>
+
+      <!-- Info cards -->
+      <div class="grid grid-cols-2 lg:grid-cols-4 gap-3">
+        <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-4"><p class="text-xs text-gray-400">Reference Price</p><p class="text-xl font-bold text-gray-900">$${selected.refPrice.toLocaleString()}</p><p class="text-xs text-gray-500">per ${selected.unit}</p></div>
+        <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-4"><p class="text-xs text-gray-400">HS Code</p><p class="text-xl font-bold text-gray-900">${selected.hsCode}</p><p class="text-xs text-gray-500">Harmonized System</p></div>
+        <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-4"><p class="text-xs text-gray-400">Price Range</p><p class="text-lg font-bold text-gray-900">$${Math.min(...selected.prices.map(p=>p.min)).toLocaleString()} - $${Math.max(...selected.prices.map(p=>p.max)).toLocaleString()}</p></div>
+        <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-4"><p class="text-xs text-gray-400">Countries</p><p class="text-xl font-bold text-gray-900">${selected.prices.length}</p><p class="text-xs text-gray-500">data sources</p></div>
+      </div>
+
+      <!-- Tabs -->
+      <div class="flex gap-1 bg-gray-100 rounded-lg p-1 w-fit">
+        <button onclick="setPvTab('overview')" id="pv-tab-overview" class="px-4 py-2 text-xs font-medium rounded-md transition-colors tab-active">Country Prices</button>
+        <button onclick="setPvTab('trade')" id="pv-tab-trade" class="px-4 py-2 text-xs font-medium rounded-md transition-colors text-gray-500">Import/Export Data</button>
+        <button onclick="setPvTab('analyze')" id="pv-tab-analyze" class="px-4 py-2 text-xs font-medium rounded-md transition-colors text-gray-500">Price Analyzer</button>
+      </div>
+
+      <div id="pv-content"></div>
+    </div>
+  `;
+
+  setPvTab('overview');
+}
+
+window.pvTab = 'overview';
+window.setPvTab = function(tab) {
+  window.pvTab = tab;
+  ['overview','trade','analyze'].forEach(t => {
+    const btn = document.getElementById('pv-tab-'+t);
+    if (btn) { btn.className = `px-4 py-2 text-xs font-medium rounded-md transition-colors ${t===tab?'tab-active':'text-gray-500 hover:text-gray-700'}`; }
+  });
+
+  const selected = window.priceData.commodities.find(c => c.id === window.selectedCommodityId);
+  const content = document.getElementById('pv-content');
+  if (!selected || !content) return;
+
+  if (tab === 'overview') renderPvOverview(content, selected);
+  else if (tab === 'trade') renderPvTrade(content, selected);
+  else renderPvAnalyze(content, selected);
+};
+
+function renderPvOverview(el, commodity) {
+  const trendIcon = (t) => t==='rising'?'<span class="text-green-500 text-xs">&#9650;</span>':t==='falling'?'<span class="text-red-500 text-xs">&#9660;</span>':'<span class="text-gray-400 text-xs">&#9654;</span>';
+  const varColor = (v) => v > 10 ? 'text-red-600' : v > 5 ? 'text-yellow-600' : v < -10 ? 'text-green-600' : v < -5 ? 'text-blue-600' : 'text-gray-700';
+
+  el.innerHTML = `
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 fade-in">
+      <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-5">
+        <h3 class="text-sm font-semibold text-gray-900 mb-4">Average Prices by Country</h3>
+        <div style="height:320px"><canvas id="pv-chart"></canvas></div>
+      </div>
+      <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-5">
+        <h3 class="text-sm font-semibold text-gray-900 mb-4">Country Price Details</h3>
+        <div class="space-y-2 max-h-[340px] overflow-y-auto">
+          ${commodity.prices.sort((a,b)=>a.avg-b.avg).map(cp => {
+            const v = ((cp.avg - commodity.refPrice)/commodity.refPrice*100).toFixed(1);
+            return `<div class="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+              <div><p class="text-sm font-medium text-gray-900">${cp.country}</p><p class="text-xs text-gray-400">$${cp.min.toLocaleString()} - $${cp.max.toLocaleString()}</p></div>
+              <div class="text-right flex items-center gap-2">
+                <div><p class="text-sm font-bold text-gray-900">$${cp.avg.toLocaleString()}</p><p class="text-xs font-medium ${varColor(v)}">${v>0?'+':''}${v}%</p></div>
+                ${trendIcon(cp.trend)}
+              </div>
+            </div>`;
+          }).join('')}
+        </div>
+      </div>
+    </div>
+  `;
+
+  const colors = ['#3b82f6','#22c55e','#f59e0b','#ef4444','#8b5cf6','#06b6d4','#ec4899'];
+  setTimeout(() => {
+    const ctx = document.getElementById('pv-chart');
+    if (!ctx) return;
+    new Chart(ctx, {
+      type: 'bar',
+      data: {
+        labels: commodity.prices.map(p=>p.country),
+        datasets: [
+          { label:'Avg Price', data: commodity.prices.map(p=>p.avg), backgroundColor: commodity.prices.map((_,i)=>colors[i%colors.length]), borderRadius: 4 },
+          { label:'Reference', data: commodity.prices.map(()=>commodity.refPrice), type:'line', borderColor:'#ef4444', borderWidth:2, borderDash:[5,5], pointRadius:0, fill:false }
+        ]
+      },
+      options: { responsive:true, maintainAspectRatio:false, plugins:{ legend:{ labels:{font:{size:11}} } }, scales:{ y:{ beginAtZero:false }, x:{ ticks:{font:{size:10}} } } }
+    });
+  }, 50);
+}
+
+function renderPvTrade(el, commodity) {
+  const trades = window.priceData.tradeFlows.filter(t => t.commodity === commodity.name);
+  const varColor = (v) => v > 10 ? 'text-red-600' : v > 5 ? 'text-yellow-600' : v < -10 ? 'text-green-600' : v < -5 ? 'text-blue-600' : 'text-gray-700';
+
+  el.innerHTML = `
+    <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-5 fade-in">
+      <h3 class="text-sm font-semibold text-gray-900 mb-4">Import/Export Trade Data - ${commodity.name}</h3>
+      ${trades.length > 0 ? `
+        <div class="overflow-x-auto">
+          <table class="w-full text-sm">
+            <thead><tr class="border-b border-gray-200">
+              <th class="text-left p-3 font-medium text-gray-500">Exporter</th>
+              <th class="text-left p-3 font-medium text-gray-500">Importer</th>
+              <th class="text-right p-3 font-medium text-gray-500">Volume (${commodity.unit})</th>
+              <th class="text-right p-3 font-medium text-gray-500">Avg Price ($)</th>
+              <th class="text-right p-3 font-medium text-gray-500">vs Reference</th>
+              <th class="text-left p-3 font-medium text-gray-500">Period</th>
+            </tr></thead>
+            <tbody>
+              ${trades.map(t => {
+                const v = ((t.price-commodity.refPrice)/commodity.refPrice*100).toFixed(1);
+                return `<tr class="border-b border-gray-50 hover:bg-gray-50">
+                  <td class="p-3 font-medium text-gray-900">${t.exporter}</td>
+                  <td class="p-3 text-gray-700">${t.importer}</td>
+                  <td class="p-3 text-right text-gray-700">${t.vol.toLocaleString()}</td>
+                  <td class="p-3 text-right font-medium text-gray-900">$${t.price.toLocaleString()}</td>
+                  <td class="p-3 text-right font-medium ${varColor(v)}">${v>0?'+':''}${v}%</td>
+                  <td class="p-3 text-gray-500">${t.period}</td>
+                </tr>`;
+              }).join('')}
+            </tbody>
+          </table>
+        </div>
+        <div class="mt-6"><h4 class="text-xs font-semibold text-gray-900 mb-3">Trade Volume by Route</h4><div style="height:250px"><canvas id="trade-chart"></canvas></div></div>
+      ` : '<p class="text-sm text-gray-400 text-center py-8">No trade data available for this commodity</p>'}
+    </div>
+  `;
+
+  if (trades.length > 0) {
+    setTimeout(() => {
+      const ctx = document.getElementById('trade-chart');
+      if (!ctx) return;
+      new Chart(ctx, {
+        type:'bar',
+        data:{ labels: trades.map(t=>`${t.exporter} → ${t.importer}`), datasets:[{ label:'Volume', data: trades.map(t=>t.vol), backgroundColor:'#3b82f6', borderRadius:4 }] },
+        options:{ responsive:true, maintainAspectRatio:false, plugins:{ legend:{display:false} }, scales:{ x:{ticks:{font:{size:9},maxRotation:30}}, y:{beginAtZero:true} } }
+      });
+    }, 50);
+  }
+}
+
+function renderPvAnalyze(el, commodity) {
+  el.innerHTML = `
+    <div class="space-y-4 fade-in">
+      <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-5">
+        <h3 class="text-sm font-semibold text-gray-900 mb-2">Analyze Document Price</h3>
+        <p class="text-xs text-gray-500 mb-4">Enter a price from your trade document to compare against market rates</p>
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+          <div><label class="text-xs font-medium text-gray-600 block mb-1">Price (USD per ${commodity.unit})</label><input type="number" id="pv-price" placeholder="Enter price..." class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-brand-500 outline-none"></div>
+          <div><label class="text-xs font-medium text-gray-600 block mb-1">Country of Origin</label>
+            <select id="pv-country" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-brand-500 outline-none bg-white">
+              <option value="">Select country...</option>
+              ${commodity.prices.map(p => `<option value="${p.country}">${p.country}</option>`).join('')}
+            </select>
+          </div>
+          <div class="flex items-end"><button onclick="runPvAnalysis()" class="w-full bg-brand-600 hover:bg-brand-700 text-white font-medium py-2 rounded-lg text-sm transition-colors">Analyze</button></div>
+        </div>
+      </div>
+      <div id="pv-analysis-result"></div>
+    </div>
+  `;
+}
+
+window.runPvAnalysis = function() {
+  const price = parseFloat(document.getElementById('pv-price').value);
+  if (!price) { alert('Enter a price'); return; }
+  const country = document.getElementById('pv-country').value;
+  const commodity = window.priceData.commodities.find(c => c.id === window.selectedCommodityId);
+  if (!commodity) return;
+
+  const refVariance = ((price - commodity.refPrice) / commodity.refPrice * 100).toFixed(2);
+  const countryData = country ? commodity.prices.find(p => p.country === country) : null;
+  const varColor = (v) => { v=parseFloat(v); return v > 10 ? 'text-red-600 bg-red-50' : v > 5 ? 'text-yellow-600 bg-yellow-50' : v < -10 ? 'text-green-600 bg-green-50' : v < -5 ? 'text-blue-600 bg-blue-50' : 'text-gray-700 bg-blue-50'; };
+  const varText = (v) => { v=parseFloat(v); return v > 10 ? 'text-red-600' : v > 5 ? 'text-yellow-600' : v < -10 ? 'text-green-600' : v < -5 ? 'text-blue-600' : 'text-gray-700'; };
+
+  const result = document.getElementById('pv-analysis-result');
+  result.innerHTML = `
+    <div class="bg-white rounded-xl shadow-sm border border-brand-200 p-5 fade-in">
+      <h3 class="text-sm font-semibold text-gray-900 mb-4">Analysis Results</h3>
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+        <div class="bg-gray-50 rounded-lg p-3 text-center"><p class="text-xs text-gray-400">Document Price</p><p class="text-lg font-bold text-gray-900">$${price.toLocaleString()}</p></div>
+        <div class="bg-gray-50 rounded-lg p-3 text-center"><p class="text-xs text-gray-400">Reference Price</p><p class="text-lg font-bold text-gray-900">$${commodity.refPrice.toLocaleString()}</p></div>
+        <div class="rounded-lg p-3 text-center ${varColor(refVariance)}"><p class="text-xs text-gray-400">Variance</p><p class="text-lg font-bold">${refVariance>0?'+':''}${refVariance}%</p></div>
+      </div>
+      ${countryData ? `
+        <div class="p-4 rounded-lg ${price>=countryData.min&&price<=countryData.max?'bg-green-50 border border-green-200':'bg-red-50 border border-red-200'} mb-4">
+          <div class="flex items-center gap-2 mb-2">
+            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${price>=countryData.min&&price<=countryData.max?'bg-green-100 text-green-800':'bg-red-100 text-red-800'}">${price>=countryData.min&&price<=countryData.max?'Within Expected Range':'Outside Expected Range'}</span>
+            <span class="text-xs text-gray-500">${country}</span>
+          </div>
+          <div class="grid grid-cols-4 gap-3 text-center">
+            <div><p class="text-[10px] text-gray-400">Country Avg</p><p class="text-sm font-bold">$${countryData.avg.toLocaleString()}</p></div>
+            <div><p class="text-[10px] text-gray-400">Min</p><p class="text-sm font-bold">$${countryData.min.toLocaleString()}</p></div>
+            <div><p class="text-[10px] text-gray-400">Max</p><p class="text-sm font-bold">$${countryData.max.toLocaleString()}</p></div>
+            <div><p class="text-[10px] text-gray-400">Variance</p><p class="text-sm font-bold ${varText(((price-countryData.avg)/countryData.avg*100).toFixed(1))}">${((price-countryData.avg)/countryData.avg*100)>0?'+':''}${((price-countryData.avg)/countryData.avg*100).toFixed(1)}%</p></div>
+          </div>
+        </div>
+      ` : ''}
+    </div>
+
+    <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-5 mt-4 fade-in">
+      <h3 class="text-sm font-semibold text-gray-900 mb-4">Price Comparison Across Countries</h3>
+      <div style="height:300px"><canvas id="pv-analysis-chart"></canvas></div>
+    </div>
+
+    <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-5 mt-4 fade-in">
+      <h3 class="text-sm font-semibold text-gray-900 mb-4">Detailed Country Comparison</h3>
+      <div class="overflow-x-auto">
+        <table class="w-full text-sm">
+          <thead><tr class="border-b border-gray-200">
+            <th class="text-left p-3 font-medium text-gray-500">Country</th>
+            <th class="text-right p-3 font-medium text-gray-500">Avg</th>
+            <th class="text-right p-3 font-medium text-gray-500">Min</th>
+            <th class="text-right p-3 font-medium text-gray-500">Max</th>
+            <th class="text-center p-3 font-medium text-gray-500">Trend</th>
+            <th class="text-right p-3 font-medium text-gray-500">Variance</th>
+          </tr></thead>
+          <tbody>
+            ${commodity.prices.map(cp => {
+              const v = ((price-cp.avg)/cp.avg*100).toFixed(1);
+              return `<tr class="border-b border-gray-50 ${cp.country===country?'bg-brand-50':''} hover:bg-gray-50">
+                <td class="p-3 font-medium text-gray-900">${cp.country}</td>
+                <td class="p-3 text-right">$${cp.avg.toLocaleString()}</td>
+                <td class="p-3 text-right text-gray-500">$${cp.min.toLocaleString()}</td>
+                <td class="p-3 text-right text-gray-500">$${cp.max.toLocaleString()}</td>
+                <td class="p-3 text-center">${cp.trend==='rising'?'<span class="text-green-500">&#9650;</span>':cp.trend==='falling'?'<span class="text-red-500">&#9660;</span>':'<span class="text-gray-400">&#9654;</span>'}</td>
+                <td class="p-3 text-right font-medium ${varText(v)}">${v>0?'+':''}${v}%</td>
+              </tr>`;
+            }).join('')}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  `;
+
+  const colors = ['#3b82f6','#22c55e','#f59e0b','#ef4444','#8b5cf6','#06b6d4','#ec4899'];
+  setTimeout(() => {
+    const ctx = document.getElementById('pv-analysis-chart');
+    if (!ctx) return;
+    new Chart(ctx, {
+      type:'bar',
+      data:{
+        labels: commodity.prices.map(p=>p.country),
+        datasets:[
+          { label:'Avg Price', data: commodity.prices.map(p=>p.avg), backgroundColor: commodity.prices.map((_,i)=>colors[i%colors.length]), borderRadius:4 },
+          { label:'Your Price', data: commodity.prices.map(()=>price), type:'line', borderColor:'#ef4444', borderWidth:2, borderDash:[5,5], pointRadius:0, fill:false }
+        ]
+      },
+      options:{ responsive:true, maintainAspectRatio:false, plugins:{ legend:{labels:{font:{size:11}}} }, scales:{ y:{beginAtZero:false}, x:{ticks:{font:{size:10}}} } }
+    });
+  }, 50);
+};
+
+// ===================== Init =====================
+navigate('dashboard');
+</script>
+</body>
+</html>
