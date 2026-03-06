@@ -1,0 +1,1312 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Price Checker - Import/Export</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    background: #f0f2f5;
+    color: #1a1a2e;
+    min-height: 100vh;
+  }
+
+  header {
+    background: linear-gradient(135deg, #0f3460, #16213e);
+    color: #fff;
+    padding: 24px 32px 0;
+    text-align: center;
+  }
+
+  header h1 { font-size: 1.8rem; font-weight: 700; }
+  header p { opacity: 0.75; margin-top: 4px; font-size: 0.95rem; }
+
+  /* ---------- Tabs ---------- */
+  .tabs {
+    display: flex;
+    gap: 0;
+    margin-top: 20px;
+    justify-content: center;
+  }
+
+  .tab-btn {
+    padding: 12px 32px;
+    border: none;
+    background: rgba(255,255,255,0.1);
+    color: rgba(255,255,255,0.7);
+    font-size: 0.95rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+    border-radius: 10px 10px 0 0;
+  }
+
+  .tab-btn:hover { background: rgba(255,255,255,0.2); color: #fff; }
+
+  .tab-btn.active {
+    background: #f0f2f5;
+    color: #0f3460;
+  }
+
+  .tab-content { display: none; }
+  .tab-content.active { display: block; }
+
+  .container { max-width: 1100px; margin: 0 auto; padding: 24px 16px; }
+
+  /* ---------- Card ---------- */
+  .card {
+    background: #fff;
+    border-radius: 12px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+    padding: 24px;
+    margin-bottom: 24px;
+  }
+
+  .card h2 { margin-bottom: 16px; font-size: 1.15rem; }
+
+  .form-row {
+    display: flex;
+    gap: 12px;
+    flex-wrap: wrap;
+  }
+
+  .form-group {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    min-width: 140px;
+  }
+
+  .form-group label {
+    font-size: 0.8rem;
+    font-weight: 600;
+    margin-bottom: 4px;
+    color: #555;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+
+  .form-group input, .form-group select {
+    padding: 10px 12px;
+    border: 1.5px solid #ddd;
+    border-radius: 8px;
+    font-size: 0.95rem;
+    transition: border-color 0.2s;
+  }
+
+  .form-group input:focus, .form-group select:focus {
+    outline: none;
+    border-color: #0f3460;
+  }
+
+  .btn {
+    padding: 10px 22px;
+    border: none;
+    border-radius: 8px;
+    font-size: 0.95rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.2s, transform 0.1s;
+  }
+
+  .btn:active { transform: scale(0.97); }
+
+  .btn-primary {
+    background: #0f3460;
+    color: #fff;
+    align-self: flex-end;
+    margin-top: 4px;
+  }
+
+  .btn-primary:hover { background: #1a4a7a; }
+
+  .btn-danger {
+    background: #e74c3c;
+    color: #fff;
+    padding: 6px 14px;
+    font-size: 0.82rem;
+  }
+
+  .btn-danger:hover { background: #c0392b; }
+
+  .btn-edit {
+    background: #f39c12;
+    color: #fff;
+    padding: 6px 14px;
+    font-size: 0.82rem;
+  }
+
+  .btn-edit:hover { background: #d68910; }
+
+  .btn-cancel {
+    background: #95a5a6;
+    color: #fff;
+    align-self: flex-end;
+    margin-top: 4px;
+  }
+
+  .btn-cancel:hover { background: #7f8c8d; }
+
+  /* ---------- Stats ---------- */
+  .stats {
+    display: flex;
+    gap: 16px;
+    flex-wrap: wrap;
+    margin-bottom: 24px;
+  }
+
+  .stat-box {
+    flex: 1;
+    min-width: 140px;
+    background: #fff;
+    border-radius: 12px;
+    padding: 20px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+    text-align: center;
+  }
+
+  .stat-box .value {
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: #0f3460;
+  }
+
+  .stat-box .label {
+    font-size: 0.78rem;
+    color: #888;
+    margin-top: 4px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+
+  /* ---------- Toolbar ---------- */
+  .toolbar {
+    display: flex;
+    gap: 12px;
+    flex-wrap: wrap;
+    align-items: center;
+    margin-bottom: 16px;
+  }
+
+  .toolbar input, .toolbar select {
+    padding: 10px 14px;
+    border: 1.5px solid #ddd;
+    border-radius: 8px;
+    font-size: 0.95rem;
+    flex: 1;
+    min-width: 160px;
+  }
+
+  .toolbar input:focus, .toolbar select:focus {
+    outline: none;
+    border-color: #0f3460;
+  }
+
+  .toolbar select { flex: 0 0 180px; }
+
+  /* ---------- Table ---------- */
+  .table-wrap { overflow-x: auto; }
+
+  table { width: 100%; border-collapse: collapse; }
+
+  thead th {
+    text-align: left;
+    padding: 12px 14px;
+    background: #f8f9fa;
+    font-size: 0.82rem;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: #666;
+    border-bottom: 2px solid #eee;
+    white-space: nowrap;
+  }
+
+  tbody tr {
+    border-bottom: 1px solid #f0f0f0;
+    transition: background 0.15s;
+  }
+
+  tbody tr:hover { background: #f8f9fc; }
+
+  tbody td {
+    padding: 12px 14px;
+    font-size: 0.95rem;
+  }
+
+  .price-cell { font-weight: 700; color: #27ae60; }
+
+  .category-badge {
+    display: inline-block;
+    padding: 3px 10px;
+    border-radius: 20px;
+    font-size: 0.78rem;
+    font-weight: 600;
+    background: #e8f4fd;
+    color: #0f3460;
+  }
+
+  .actions { display: flex; gap: 6px; }
+
+  .empty-state {
+    text-align: center;
+    padding: 48px 16px;
+    color: #aaa;
+  }
+
+  .empty-state .icon { font-size: 3rem; margin-bottom: 12px; }
+
+  /* ---------- Import/Export Specific ---------- */
+  .ie-controls {
+    display: flex;
+    gap: 12px;
+    flex-wrap: wrap;
+    margin-bottom: 20px;
+    align-items: flex-end;
+  }
+
+  .ie-controls .form-group { min-width: 180px; }
+
+  .currency-toggle {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 16px;
+    background: #e8f4fd;
+    border-radius: 8px;
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: #0f3460;
+    cursor: pointer;
+    user-select: none;
+    align-self: flex-end;
+    margin-bottom: 2px;
+  }
+
+  .currency-toggle input { cursor: pointer; }
+
+  .row-cheapest { background: #e8fde8 !important; }
+  .row-expensive { background: #fde8e8 !important; }
+
+  .flag { margin-right: 6px; font-size: 1.1rem; }
+
+  /* ---------- Bar Chart ---------- */
+  .chart-section { margin-top: 20px; }
+  .chart-section h3 { font-size: 1rem; margin-bottom: 12px; color: #333; }
+
+  .bar-chart { display: flex; flex-direction: column; gap: 8px; }
+
+  .bar-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .bar-label {
+    width: 120px;
+    font-size: 0.82rem;
+    font-weight: 600;
+    text-align: right;
+    white-space: nowrap;
+    color: #555;
+  }
+
+  .bar-track {
+    flex: 1;
+    background: #f0f2f5;
+    border-radius: 6px;
+    height: 28px;
+    overflow: hidden;
+    position: relative;
+  }
+
+  .bar-fill {
+    height: 100%;
+    border-radius: 6px;
+    transition: width 0.5s ease;
+    display: flex;
+    align-items: center;
+    padding-left: 10px;
+    font-size: 0.78rem;
+    font-weight: 700;
+    color: #fff;
+    min-width: 60px;
+  }
+
+  .bar-fill.cheapest { background: linear-gradient(90deg, #27ae60, #2ecc71); }
+  .bar-fill.expensive { background: linear-gradient(90deg, #e74c3c, #c0392b); }
+  .bar-fill.normal { background: linear-gradient(90deg, #3498db, #2980b9); }
+
+  /* ---------- IE Stats ---------- */
+  .ie-stats {
+    display: flex;
+    gap: 16px;
+    flex-wrap: wrap;
+    margin-bottom: 20px;
+  }
+
+  .ie-stat {
+    flex: 1;
+    min-width: 200px;
+    background: #fff;
+    border-radius: 12px;
+    padding: 18px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+  }
+
+  .ie-stat .ie-stat-label {
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: #888;
+    margin-bottom: 6px;
+  }
+
+  .ie-stat .ie-stat-value {
+    font-size: 1.2rem;
+    font-weight: 700;
+    color: #0f3460;
+  }
+
+  .ie-stat .ie-stat-sub {
+    font-size: 0.82rem;
+    color: #666;
+    margin-top: 2px;
+  }
+
+  .updated-note {
+    font-size: 0.75rem;
+    color: #aaa;
+    text-align: right;
+    margin-top: 8px;
+  }
+
+  .type-badge {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 12px;
+    font-size: 0.72rem;
+    font-weight: 700;
+    text-transform: uppercase;
+  }
+
+  .type-export { background: #d4edda; color: #155724; }
+  .type-import { background: #cce5ff; color: #004085; }
+
+  /* ---------- Responsive ---------- */
+  @media (max-width: 700px) {
+    .form-row { flex-direction: column; }
+    .toolbar { flex-direction: column; }
+    .toolbar select { flex: 1; }
+    .stats, .ie-stats { flex-direction: column; }
+    .ie-controls { flex-direction: column; }
+    .bar-label { width: 80px; font-size: 0.75rem; }
+    .tab-btn { padding: 10px 18px; font-size: 0.85rem; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Price Checker</h1>
+  <p>Track, compare, and check import/export prices worldwide</p>
+  <div class="tabs">
+    <button class="tab-btn active" onclick="switchTab('local')">My Prices</button>
+    <button class="tab-btn" onclick="switchTab('import-export')">Import / Export Prices</button>
+  </div>
+</header>
+
+<!-- ==================== TAB 1: MY PRICES ==================== -->
+<div class="tab-content active" id="tab-local">
+<div class="container">
+
+  <div class="card" id="form-card">
+    <h2 id="form-title">Add New Item</h2>
+    <div class="form-row">
+      <div class="form-group">
+        <label for="item-name">Item Name</label>
+        <input type="text" id="item-name" placeholder="e.g. Rice (5kg)">
+      </div>
+      <div class="form-group">
+        <label for="item-price">Price</label>
+        <input type="number" id="item-price" placeholder="0.00" min="0" step="0.01">
+      </div>
+      <div class="form-group">
+        <label for="item-category">Category</label>
+        <select id="item-category">
+          <option value="Groceries">Groceries</option>
+          <option value="Electronics">Electronics</option>
+          <option value="Clothing">Clothing</option>
+          <option value="Household">Household</option>
+          <option value="Health">Health</option>
+          <option value="Other">Other</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label for="item-store">Store / Source</label>
+        <input type="text" id="item-store" placeholder="e.g. Walmart">
+      </div>
+      <button class="btn btn-primary" id="btn-save" onclick="saveItem()">Add Item</button>
+      <button class="btn btn-cancel" id="btn-cancel" onclick="cancelEdit()" style="display:none;">Cancel</button>
+    </div>
+  </div>
+
+  <div class="stats">
+    <div class="stat-box">
+      <div class="value" id="stat-total">0</div>
+      <div class="label">Total Items</div>
+    </div>
+    <div class="stat-box">
+      <div class="value" id="stat-cheapest">--</div>
+      <div class="label">Cheapest Item</div>
+    </div>
+    <div class="stat-box">
+      <div class="value" id="stat-expensive">--</div>
+      <div class="label">Most Expensive</div>
+    </div>
+    <div class="stat-box">
+      <div class="value" id="stat-avg">--</div>
+      <div class="label">Average Price</div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>Items</h2>
+    <div class="toolbar">
+      <input type="text" id="search" placeholder="Search by name or store..." oninput="renderTable()">
+      <select id="filter-category" onchange="renderTable()">
+        <option value="">All Categories</option>
+        <option value="Groceries">Groceries</option>
+        <option value="Electronics">Electronics</option>
+        <option value="Clothing">Clothing</option>
+        <option value="Household">Household</option>
+        <option value="Health">Health</option>
+        <option value="Other">Other</option>
+      </select>
+      <select id="sort-by" onchange="renderTable()">
+        <option value="name-asc">Name A-Z</option>
+        <option value="name-desc">Name Z-A</option>
+        <option value="price-asc">Price Low-High</option>
+        <option value="price-desc">Price High-Low</option>
+        <option value="date-desc">Newest First</option>
+        <option value="date-asc">Oldest First</option>
+      </select>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Item</th>
+            <th>Price</th>
+            <th>Category</th>
+            <th>Store</th>
+            <th>Date Added</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody id="items-body"></tbody>
+      </table>
+    </div>
+    <div class="empty-state" id="empty-state" style="display:none;">
+      <div class="icon">&#128722;</div>
+      <p>No items yet. Add your first item above!</p>
+    </div>
+  </div>
+</div>
+</div>
+
+<!-- ==================== TAB 2: IMPORT / EXPORT ==================== -->
+<div class="tab-content" id="tab-import-export">
+<div class="container">
+
+  <!-- Controls -->
+  <div class="card">
+    <h2>Compare Import / Export Prices</h2>
+    <div class="ie-controls">
+      <div class="form-group">
+        <label for="ie-good">Select Good</label>
+        <select id="ie-good" onchange="renderIE()"></select>
+      </div>
+      <div class="form-group">
+        <label for="ie-category-filter">Category</label>
+        <select id="ie-category-filter" onchange="filterIEGoods()">
+          <option value="">All Categories</option>
+          <option value="Groceries">Groceries</option>
+          <option value="Electronics">Electronics</option>
+          <option value="Clothing">Clothing</option>
+          <option value="Raw Materials">Raw Materials</option>
+          <option value="Household">Household</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label for="ie-country-filter">Country</label>
+        <select id="ie-country-filter" onchange="renderIE()">
+          <option value="">All Countries</option>
+        </select>
+      </div>
+      <label class="currency-toggle">
+        <input type="checkbox" id="ie-show-usd" checked onchange="renderIE()">
+        Show all in USD
+      </label>
+    </div>
+  </div>
+
+  <!-- Summary Stats -->
+  <div class="ie-stats" id="ie-stats"></div>
+
+  <!-- Comparison Table -->
+  <div class="card">
+    <h2 id="ie-table-title">Price Comparison</h2>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Country</th>
+            <th>Export (FOB)</th>
+            <th>Import (CIF)</th>
+            <th>Tariff %</th>
+            <th>Landed Cost</th>
+            <th>Unit</th>
+          </tr>
+        </thead>
+        <tbody id="ie-table-body"></tbody>
+      </table>
+    </div>
+
+    <!-- Bar Chart -->
+    <div class="chart-section" id="ie-chart-section">
+      <h3>Landed Cost Comparison</h3>
+      <div class="bar-chart" id="ie-bar-chart"></div>
+    </div>
+
+    <p class="updated-note">Reference prices as of March 2026. Rates are approximate and for comparison purposes only.</p>
+  </div>
+</div>
+</div>
+
+<script>
+// ===================== EXCHANGE RATES (to USD) =====================
+const FX = {
+  USD: 1,
+  CNY: 0.137,
+  INR: 0.0119,
+  EUR: 1.085,
+  BRL: 0.173,
+  JPY: 0.0067,
+  GBP: 1.265,
+  AUD: 0.645,
+  MXN: 0.058,
+  CAD: 0.735,
+  KRW: 0.00073,
+  IDR: 0.000063
+};
+
+const CURRENCY_SYMBOLS = {
+  USD: '$', CNY: '\u00a5', INR: '\u20b9', EUR: '\u20ac', BRL: 'R$',
+  JPY: '\u00a5', GBP: '\u00a3', AUD: 'A$', MXN: 'MX$', CAD: 'C$',
+  KRW: '\u20a9', IDR: 'Rp'
+};
+
+const FLAGS = {
+  'USA': '\ud83c\uddfa\ud83c\uddf8', 'China': '\ud83c\udde8\ud83c\uddf3', 'India': '\ud83c\uddee\ud83c\uddf3',
+  'Germany': '\ud83c\udde9\ud83c\uddea', 'Brazil': '\ud83c\udde7\ud83c\uddf7', 'Japan': '\ud83c\uddef\ud83c\uddf5',
+  'UK': '\ud83c\uddec\ud83c\udde7', 'Australia': '\ud83c\udde6\ud83c\uddfa', 'Mexico': '\ud83c\uddf2\ud83c\uddfd',
+  'Canada': '\ud83c\udde8\ud83c\udde6', 'South Korea': '\ud83c\uddf0\ud83c\uddf7', 'Indonesia': '\ud83c\uddee\ud83c\udde9'
+};
+
+const COUNTRY_CURRENCY = {
+  'USA': 'USD', 'China': 'CNY', 'India': 'INR', 'Germany': 'EUR',
+  'Brazil': 'BRL', 'Japan': 'JPY', 'UK': 'GBP', 'Australia': 'AUD',
+  'Mexico': 'MXN', 'Canada': 'CAD', 'South Korea': 'KRW', 'Indonesia': 'IDR'
+};
+
+// ===================== IMPORT/EXPORT DATABASE =====================
+const IE_DATA = [
+  // --- Groceries ---
+  { good: 'Rice (per ton)', category: 'Groceries', entries: [
+    { country: 'USA', exportFOB: 520, importCIF: 580, tariff: 2.5, unit: 'ton', currency: 'USD' },
+    { country: 'China', exportFOB: 3200, importCIF: 3800, tariff: 65, unit: 'ton', currency: 'CNY' },
+    { country: 'India', exportFOB: 28000, importCIF: 33000, tariff: 80, unit: 'ton', currency: 'INR' },
+    { country: 'Japan', exportFOB: 95000, importCIF: 110000, tariff: 778, unit: 'ton', currency: 'JPY' },
+    { country: 'Brazil', exportFOB: 2400, importCIF: 2900, tariff: 12, unit: 'ton', currency: 'BRL' },
+    { country: 'Indonesia', exportFOB: 7500000, importCIF: 8800000, tariff: 30, unit: 'ton', currency: 'IDR' },
+    { country: 'Australia', exportFOB: 700, importCIF: 820, tariff: 0, unit: 'ton', currency: 'AUD' },
+    { country: 'Canada', exportFOB: 680, importCIF: 780, tariff: 0, unit: 'ton', currency: 'CAD' },
+    { country: 'Germany', exportFOB: 480, importCIF: 560, tariff: 15, unit: 'ton', currency: 'EUR' },
+    { country: 'Mexico', exportFOB: 9500, importCIF: 11200, tariff: 20, unit: 'ton', currency: 'MXN' },
+    { country: 'UK', exportFOB: 420, importCIF: 500, tariff: 12, unit: 'ton', currency: 'GBP' },
+    { country: 'South Korea', exportFOB: 780000, importCIF: 900000, tariff: 513, unit: 'ton', currency: 'KRW' }
+  ]},
+  { good: 'Wheat (per ton)', category: 'Groceries', entries: [
+    { country: 'USA', exportFOB: 280, importCIF: 320, tariff: 0, unit: 'ton', currency: 'USD' },
+    { country: 'Canada', exportFOB: 370, importCIF: 420, tariff: 0, unit: 'ton', currency: 'CAD' },
+    { country: 'Australia', exportFOB: 410, importCIF: 470, tariff: 0, unit: 'ton', currency: 'AUD' },
+    { country: 'India', exportFOB: 22000, importCIF: 26000, tariff: 40, unit: 'ton', currency: 'INR' },
+    { country: 'China', exportFOB: 2100, importCIF: 2500, tariff: 65, unit: 'ton', currency: 'CNY' },
+    { country: 'Germany', exportFOB: 240, importCIF: 280, tariff: 12, unit: 'ton', currency: 'EUR' },
+    { country: 'Brazil', exportFOB: 1600, importCIF: 1900, tariff: 10, unit: 'ton', currency: 'BRL' },
+    { country: 'Japan', exportFOB: 48000, importCIF: 56000, tariff: 55, unit: 'ton', currency: 'JPY' },
+    { country: 'Mexico', exportFOB: 5800, importCIF: 6800, tariff: 15, unit: 'ton', currency: 'MXN' },
+    { country: 'UK', exportFOB: 200, importCIF: 240, tariff: 12, unit: 'ton', currency: 'GBP' },
+    { country: 'South Korea', exportFOB: 420000, importCIF: 490000, tariff: 3, unit: 'ton', currency: 'KRW' },
+    { country: 'Indonesia', exportFOB: 5200000, importCIF: 6100000, tariff: 5, unit: 'ton', currency: 'IDR' }
+  ]},
+  { good: 'Coffee Beans (per ton)', category: 'Groceries', entries: [
+    { country: 'Brazil', exportFOB: 18000, importCIF: 20000, tariff: 0, unit: 'ton', currency: 'BRL' },
+    { country: 'USA', exportFOB: 4200, importCIF: 4600, tariff: 0, unit: 'ton', currency: 'USD' },
+    { country: 'Germany', exportFOB: 3800, importCIF: 4200, tariff: 7.5, unit: 'ton', currency: 'EUR' },
+    { country: 'Japan', exportFOB: 680000, importCIF: 750000, tariff: 0, unit: 'ton', currency: 'JPY' },
+    { country: 'Indonesia', exportFOB: 48000000, importCIF: 54000000, tariff: 5, unit: 'ton', currency: 'IDR' },
+    { country: 'India', exportFOB: 300000, importCIF: 350000, tariff: 100, unit: 'ton', currency: 'INR' },
+    { country: 'China', exportFOB: 28000, importCIF: 32000, tariff: 8, unit: 'ton', currency: 'CNY' },
+    { country: 'UK', exportFOB: 3200, importCIF: 3600, tariff: 7.5, unit: 'ton', currency: 'GBP' },
+    { country: 'Canada', exportFOB: 5800, importCIF: 6400, tariff: 0, unit: 'ton', currency: 'CAD' },
+    { country: 'Australia', exportFOB: 6200, importCIF: 6900, tariff: 0, unit: 'ton', currency: 'AUD' },
+    { country: 'South Korea', exportFOB: 5800000, importCIF: 6400000, tariff: 2, unit: 'ton', currency: 'KRW' },
+    { country: 'Mexico', exportFOB: 72000, importCIF: 82000, tariff: 20, unit: 'ton', currency: 'MXN' }
+  ]},
+  { good: 'Sugar (per ton)', category: 'Groceries', entries: [
+    { country: 'Brazil', exportFOB: 2200, importCIF: 2500, tariff: 0, unit: 'ton', currency: 'BRL' },
+    { country: 'India', exportFOB: 32000, importCIF: 37000, tariff: 100, unit: 'ton', currency: 'INR' },
+    { country: 'USA', exportFOB: 480, importCIF: 540, tariff: 15.4, unit: 'ton', currency: 'USD' },
+    { country: 'Australia', exportFOB: 580, importCIF: 660, tariff: 0, unit: 'ton', currency: 'AUD' },
+    { country: 'China', exportFOB: 3800, importCIF: 4400, tariff: 50, unit: 'ton', currency: 'CNY' },
+    { country: 'Germany', exportFOB: 400, importCIF: 460, tariff: 12, unit: 'ton', currency: 'EUR' },
+    { country: 'Mexico', exportFOB: 8200, importCIF: 9600, tariff: 15, unit: 'ton', currency: 'MXN' },
+    { country: 'Japan', exportFOB: 78000, importCIF: 90000, tariff: 50, unit: 'ton', currency: 'JPY' },
+    { country: 'Indonesia', exportFOB: 6800000, importCIF: 7900000, tariff: 15, unit: 'ton', currency: 'IDR' },
+    { country: 'Canada', exportFOB: 600, importCIF: 700, tariff: 8, unit: 'ton', currency: 'CAD' },
+    { country: 'UK', exportFOB: 350, importCIF: 410, tariff: 12, unit: 'ton', currency: 'GBP' },
+    { country: 'South Korea', exportFOB: 650000, importCIF: 750000, tariff: 3, unit: 'ton', currency: 'KRW' }
+  ]},
+  { good: 'Soybeans (per ton)', category: 'Groceries', entries: [
+    { country: 'USA', exportFOB: 450, importCIF: 510, tariff: 0, unit: 'ton', currency: 'USD' },
+    { country: 'Brazil', exportFOB: 2600, importCIF: 3000, tariff: 0, unit: 'ton', currency: 'BRL' },
+    { country: 'China', exportFOB: 3600, importCIF: 4100, tariff: 3, unit: 'ton', currency: 'CNY' },
+    { country: 'India', exportFOB: 38000, importCIF: 44000, tariff: 30, unit: 'ton', currency: 'INR' },
+    { country: 'Germany', exportFOB: 420, importCIF: 480, tariff: 0, unit: 'ton', currency: 'EUR' },
+    { country: 'Japan', exportFOB: 72000, importCIF: 82000, tariff: 0, unit: 'ton', currency: 'JPY' },
+    { country: 'Canada', exportFOB: 600, importCIF: 680, tariff: 0, unit: 'ton', currency: 'CAD' },
+    { country: 'Mexico', exportFOB: 8600, importCIF: 10000, tariff: 15, unit: 'ton', currency: 'MXN' },
+    { country: 'South Korea', exportFOB: 620000, importCIF: 710000, tariff: 5, unit: 'ton', currency: 'KRW' },
+    { country: 'Indonesia', exportFOB: 7200000, importCIF: 8400000, tariff: 5, unit: 'ton', currency: 'IDR' },
+    { country: 'Australia', exportFOB: 640, importCIF: 730, tariff: 0, unit: 'ton', currency: 'AUD' },
+    { country: 'UK', exportFOB: 380, importCIF: 440, tariff: 0, unit: 'ton', currency: 'GBP' }
+  ]},
+  { good: 'Beef (per kg)', category: 'Groceries', entries: [
+    { country: 'USA', exportFOB: 6.50, importCIF: 7.80, tariff: 12, unit: 'kg', currency: 'USD' },
+    { country: 'Brazil', exportFOB: 32, importCIF: 38, tariff: 10, unit: 'kg', currency: 'BRL' },
+    { country: 'Australia', exportFOB: 9.50, importCIF: 11.20, tariff: 0, unit: 'kg', currency: 'AUD' },
+    { country: 'Japan', exportFOB: 3200, importCIF: 3800, tariff: 38.5, unit: 'kg', currency: 'JPY' },
+    { country: 'Canada', exportFOB: 8.80, importCIF: 10.20, tariff: 0, unit: 'kg', currency: 'CAD' },
+    { country: 'Germany', exportFOB: 6.20, importCIF: 7.40, tariff: 12.8, unit: 'kg', currency: 'EUR' },
+    { country: 'UK', exportFOB: 5.80, importCIF: 7.00, tariff: 12.8, unit: 'kg', currency: 'GBP' },
+    { country: 'China', exportFOB: 56, importCIF: 68, tariff: 12, unit: 'kg', currency: 'CNY' },
+    { country: 'South Korea', exportFOB: 14000, importCIF: 16500, tariff: 40, unit: 'kg', currency: 'KRW' },
+    { country: 'Mexico', exportFOB: 130, importCIF: 155, tariff: 20, unit: 'kg', currency: 'MXN' },
+    { country: 'India', exportFOB: 420, importCIF: 500, tariff: 30, unit: 'kg', currency: 'INR' },
+    { country: 'Indonesia', exportFOB: 120000, importCIF: 142000, tariff: 5, unit: 'kg', currency: 'IDR' }
+  ]},
+
+  // --- Electronics ---
+  { good: 'Smartphone (mid-range)', category: 'Electronics', entries: [
+    { country: 'China', exportFOB: 1200, importCIF: 1350, tariff: 0, unit: 'unit', currency: 'CNY' },
+    { country: 'USA', exportFOB: 320, importCIF: 360, tariff: 0, unit: 'unit', currency: 'USD' },
+    { country: 'India', exportFOB: 14000, importCIF: 16000, tariff: 20, unit: 'unit', currency: 'INR' },
+    { country: 'South Korea', exportFOB: 350000, importCIF: 400000, tariff: 8, unit: 'unit', currency: 'KRW' },
+    { country: 'Japan', exportFOB: 42000, importCIF: 48000, tariff: 0, unit: 'unit', currency: 'JPY' },
+    { country: 'Germany', exportFOB: 280, importCIF: 320, tariff: 0, unit: 'unit', currency: 'EUR' },
+    { country: 'Brazil', exportFOB: 2200, importCIF: 2600, tariff: 60, unit: 'unit', currency: 'BRL' },
+    { country: 'UK', exportFOB: 250, importCIF: 290, tariff: 0, unit: 'unit', currency: 'GBP' },
+    { country: 'Mexico', exportFOB: 5500, importCIF: 6300, tariff: 15, unit: 'unit', currency: 'MXN' },
+    { country: 'Indonesia', exportFOB: 3200000, importCIF: 3700000, tariff: 0, unit: 'unit', currency: 'IDR' },
+    { country: 'Canada', exportFOB: 420, importCIF: 480, tariff: 0, unit: 'unit', currency: 'CAD' },
+    { country: 'Australia', exportFOB: 480, importCIF: 550, tariff: 0, unit: 'unit', currency: 'AUD' }
+  ]},
+  { good: 'Laptop Computer', category: 'Electronics', entries: [
+    { country: 'China', exportFOB: 3500, importCIF: 3900, tariff: 0, unit: 'unit', currency: 'CNY' },
+    { country: 'USA', exportFOB: 750, importCIF: 830, tariff: 0, unit: 'unit', currency: 'USD' },
+    { country: 'Japan', exportFOB: 98000, importCIF: 112000, tariff: 0, unit: 'unit', currency: 'JPY' },
+    { country: 'South Korea', exportFOB: 850000, importCIF: 960000, tariff: 8, unit: 'unit', currency: 'KRW' },
+    { country: 'Germany', exportFOB: 680, importCIF: 760, tariff: 0, unit: 'unit', currency: 'EUR' },
+    { country: 'India', exportFOB: 42000, importCIF: 48000, tariff: 20, unit: 'unit', currency: 'INR' },
+    { country: 'Brazil', exportFOB: 5500, importCIF: 6200, tariff: 60, unit: 'unit', currency: 'BRL' },
+    { country: 'UK', exportFOB: 600, importCIF: 680, tariff: 0, unit: 'unit', currency: 'GBP' },
+    { country: 'Canada', exportFOB: 980, importCIF: 1100, tariff: 0, unit: 'unit', currency: 'CAD' },
+    { country: 'Australia', exportFOB: 1100, importCIF: 1250, tariff: 0, unit: 'unit', currency: 'AUD' },
+    { country: 'Mexico', exportFOB: 14000, importCIF: 16000, tariff: 15, unit: 'unit', currency: 'MXN' },
+    { country: 'Indonesia', exportFOB: 9500000, importCIF: 10800000, tariff: 0, unit: 'unit', currency: 'IDR' }
+  ]},
+  { good: 'LED TV 55"', category: 'Electronics', entries: [
+    { country: 'China', exportFOB: 2200, importCIF: 2500, tariff: 0, unit: 'unit', currency: 'CNY' },
+    { country: 'South Korea', exportFOB: 520000, importCIF: 590000, tariff: 8, unit: 'unit', currency: 'KRW' },
+    { country: 'USA', exportFOB: 480, importCIF: 540, tariff: 3.9, unit: 'unit', currency: 'USD' },
+    { country: 'Japan', exportFOB: 68000, importCIF: 78000, tariff: 0, unit: 'unit', currency: 'JPY' },
+    { country: 'Germany', exportFOB: 420, importCIF: 480, tariff: 14, unit: 'unit', currency: 'EUR' },
+    { country: 'India', exportFOB: 28000, importCIF: 33000, tariff: 20, unit: 'unit', currency: 'INR' },
+    { country: 'Brazil', exportFOB: 3200, importCIF: 3700, tariff: 35, unit: 'unit', currency: 'BRL' },
+    { country: 'Mexico', exportFOB: 8500, importCIF: 9800, tariff: 15, unit: 'unit', currency: 'MXN' },
+    { country: 'UK', exportFOB: 380, importCIF: 440, tariff: 14, unit: 'unit', currency: 'GBP' },
+    { country: 'Canada', exportFOB: 620, importCIF: 710, tariff: 0, unit: 'unit', currency: 'CAD' },
+    { country: 'Australia', exportFOB: 720, importCIF: 830, tariff: 0, unit: 'unit', currency: 'AUD' },
+    { country: 'Indonesia', exportFOB: 5800000, importCIF: 6700000, tariff: 10, unit: 'unit', currency: 'IDR' }
+  ]},
+  { good: 'Solar Panel (per watt)', category: 'Electronics', entries: [
+    { country: 'China', exportFOB: 1.5, importCIF: 1.8, tariff: 0, unit: 'watt', currency: 'CNY' },
+    { country: 'USA', exportFOB: 0.38, importCIF: 0.44, tariff: 14.75, unit: 'watt', currency: 'USD' },
+    { country: 'Germany', exportFOB: 0.32, importCIF: 0.37, tariff: 0, unit: 'watt', currency: 'EUR' },
+    { country: 'India', exportFOB: 16, importCIF: 19, tariff: 40, unit: 'watt', currency: 'INR' },
+    { country: 'Japan', exportFOB: 48, importCIF: 55, tariff: 0, unit: 'watt', currency: 'JPY' },
+    { country: 'South Korea', exportFOB: 380, importCIF: 440, tariff: 8, unit: 'watt', currency: 'KRW' },
+    { country: 'Brazil', exportFOB: 2.4, importCIF: 2.9, tariff: 12, unit: 'watt', currency: 'BRL' },
+    { country: 'Canada', exportFOB: 0.48, importCIF: 0.55, tariff: 0, unit: 'watt', currency: 'CAD' },
+    { country: 'Australia', exportFOB: 0.52, importCIF: 0.60, tariff: 0, unit: 'watt', currency: 'AUD' },
+    { country: 'UK', exportFOB: 0.28, importCIF: 0.33, tariff: 0, unit: 'watt', currency: 'GBP' },
+    { country: 'Mexico', exportFOB: 6.5, importCIF: 7.8, tariff: 15, unit: 'watt', currency: 'MXN' },
+    { country: 'Indonesia', exportFOB: 3200, importCIF: 3800, tariff: 10, unit: 'watt', currency: 'IDR' }
+  ]},
+
+  // --- Clothing ---
+  { good: 'Cotton T-Shirt', category: 'Clothing', entries: [
+    { country: 'China', exportFOB: 18, importCIF: 22, tariff: 0, unit: 'unit', currency: 'CNY' },
+    { country: 'India', exportFOB: 180, importCIF: 220, tariff: 20, unit: 'unit', currency: 'INR' },
+    { country: 'Indonesia', exportFOB: 38000, importCIF: 46000, tariff: 15, unit: 'unit', currency: 'IDR' },
+    { country: 'USA', exportFOB: 5.50, importCIF: 6.80, tariff: 16.5, unit: 'unit', currency: 'USD' },
+    { country: 'Mexico', exportFOB: 85, importCIF: 105, tariff: 20, unit: 'unit', currency: 'MXN' },
+    { country: 'Germany', exportFOB: 4.80, importCIF: 5.90, tariff: 12, unit: 'unit', currency: 'EUR' },
+    { country: 'UK', exportFOB: 4.20, importCIF: 5.20, tariff: 12, unit: 'unit', currency: 'GBP' },
+    { country: 'Brazil', exportFOB: 28, importCIF: 35, tariff: 35, unit: 'unit', currency: 'BRL' },
+    { country: 'Japan', exportFOB: 850, importCIF: 1050, tariff: 10.9, unit: 'unit', currency: 'JPY' },
+    { country: 'Canada', exportFOB: 7.20, importCIF: 8.80, tariff: 17, unit: 'unit', currency: 'CAD' },
+    { country: 'South Korea', exportFOB: 5800, importCIF: 7100, tariff: 13, unit: 'unit', currency: 'KRW' },
+    { country: 'Australia', exportFOB: 8.50, importCIF: 10.40, tariff: 5, unit: 'unit', currency: 'AUD' }
+  ]},
+  { good: 'Denim Jeans', category: 'Clothing', entries: [
+    { country: 'China', exportFOB: 55, importCIF: 68, tariff: 0, unit: 'unit', currency: 'CNY' },
+    { country: 'India', exportFOB: 600, importCIF: 740, tariff: 20, unit: 'unit', currency: 'INR' },
+    { country: 'USA', exportFOB: 18, importCIF: 22, tariff: 16.6, unit: 'unit', currency: 'USD' },
+    { country: 'Mexico', exportFOB: 280, importCIF: 340, tariff: 20, unit: 'unit', currency: 'MXN' },
+    { country: 'Indonesia', exportFOB: 120000, importCIF: 148000, tariff: 15, unit: 'unit', currency: 'IDR' },
+    { country: 'Germany', exportFOB: 16, importCIF: 20, tariff: 12, unit: 'unit', currency: 'EUR' },
+    { country: 'Brazil', exportFOB: 85, importCIF: 105, tariff: 35, unit: 'unit', currency: 'BRL' },
+    { country: 'UK', exportFOB: 14, importCIF: 17, tariff: 12, unit: 'unit', currency: 'GBP' },
+    { country: 'Japan', exportFOB: 2800, importCIF: 3400, tariff: 10, unit: 'unit', currency: 'JPY' },
+    { country: 'Canada', exportFOB: 24, importCIF: 29, tariff: 17, unit: 'unit', currency: 'CAD' },
+    { country: 'Australia', exportFOB: 28, importCIF: 34, tariff: 5, unit: 'unit', currency: 'AUD' },
+    { country: 'South Korea', exportFOB: 18000, importCIF: 22000, tariff: 13, unit: 'unit', currency: 'KRW' }
+  ]},
+  { good: 'Leather Shoes (pair)', category: 'Clothing', entries: [
+    { country: 'China', exportFOB: 120, importCIF: 145, tariff: 0, unit: 'pair', currency: 'CNY' },
+    { country: 'India', exportFOB: 1400, importCIF: 1700, tariff: 20, unit: 'pair', currency: 'INR' },
+    { country: 'Italy', exportFOB: 45, importCIF: 55, tariff: 8, unit: 'pair', currency: 'EUR' },
+    { country: 'USA', exportFOB: 42, importCIF: 52, tariff: 8.5, unit: 'pair', currency: 'USD' },
+    { country: 'Brazil', exportFOB: 180, importCIF: 220, tariff: 35, unit: 'pair', currency: 'BRL' },
+    { country: 'Indonesia', exportFOB: 280000, importCIF: 340000, tariff: 15, unit: 'pair', currency: 'IDR' },
+    { country: 'Mexico', exportFOB: 650, importCIF: 790, tariff: 20, unit: 'pair', currency: 'MXN' },
+    { country: 'UK', exportFOB: 35, importCIF: 43, tariff: 8, unit: 'pair', currency: 'GBP' },
+    { country: 'Japan', exportFOB: 6500, importCIF: 7800, tariff: 30, unit: 'pair', currency: 'JPY' },
+    { country: 'Germany', exportFOB: 38, importCIF: 46, tariff: 8, unit: 'pair', currency: 'EUR' },
+    { country: 'South Korea', exportFOB: 42000, importCIF: 51000, tariff: 13, unit: 'pair', currency: 'KRW' },
+    { country: 'Canada', exportFOB: 55, importCIF: 67, tariff: 11, unit: 'pair', currency: 'CAD' }
+  ]},
+
+  // --- Raw Materials ---
+  { good: 'Crude Oil (per barrel)', category: 'Raw Materials', entries: [
+    { country: 'USA', exportFOB: 72, importCIF: 78, tariff: 0, unit: 'barrel', currency: 'USD' },
+    { country: 'Canada', exportFOB: 95, importCIF: 103, tariff: 0, unit: 'barrel', currency: 'CAD' },
+    { country: 'Brazil', exportFOB: 380, importCIF: 420, tariff: 0, unit: 'barrel', currency: 'BRL' },
+    { country: 'UK', exportFOB: 58, importCIF: 64, tariff: 0, unit: 'barrel', currency: 'GBP' },
+    { country: 'China', exportFOB: 520, importCIF: 570, tariff: 0, unit: 'barrel', currency: 'CNY' },
+    { country: 'India', exportFOB: 6200, importCIF: 6800, tariff: 5, unit: 'barrel', currency: 'INR' },
+    { country: 'Japan', exportFOB: 10800, importCIF: 11800, tariff: 0, unit: 'barrel', currency: 'JPY' },
+    { country: 'Germany', exportFOB: 66, importCIF: 72, tariff: 0, unit: 'barrel', currency: 'EUR' },
+    { country: 'South Korea', exportFOB: 98000, importCIF: 108000, tariff: 3, unit: 'barrel', currency: 'KRW' },
+    { country: 'Indonesia', exportFOB: 1150000, importCIF: 1260000, tariff: 0, unit: 'barrel', currency: 'IDR' },
+    { country: 'Mexico', exportFOB: 1280, importCIF: 1400, tariff: 0, unit: 'barrel', currency: 'MXN' },
+    { country: 'Australia', exportFOB: 108, importCIF: 118, tariff: 0, unit: 'barrel', currency: 'AUD' }
+  ]},
+  { good: 'Steel (per ton)', category: 'Raw Materials', entries: [
+    { country: 'China', exportFOB: 3800, importCIF: 4300, tariff: 0, unit: 'ton', currency: 'CNY' },
+    { country: 'USA', exportFOB: 850, importCIF: 950, tariff: 25, unit: 'ton', currency: 'USD' },
+    { country: 'India', exportFOB: 48000, importCIF: 55000, tariff: 15, unit: 'ton', currency: 'INR' },
+    { country: 'Japan', exportFOB: 105000, importCIF: 118000, tariff: 0, unit: 'ton', currency: 'JPY' },
+    { country: 'Germany', exportFOB: 720, importCIF: 810, tariff: 0, unit: 'ton', currency: 'EUR' },
+    { country: 'South Korea', exportFOB: 750000, importCIF: 850000, tariff: 0, unit: 'ton', currency: 'KRW' },
+    { country: 'Brazil', exportFOB: 4200, importCIF: 4800, tariff: 12, unit: 'ton', currency: 'BRL' },
+    { country: 'UK', exportFOB: 620, importCIF: 710, tariff: 0, unit: 'ton', currency: 'GBP' },
+    { country: 'Canada', exportFOB: 1050, importCIF: 1180, tariff: 25, unit: 'ton', currency: 'CAD' },
+    { country: 'Mexico', exportFOB: 14500, importCIF: 16500, tariff: 15, unit: 'ton', currency: 'MXN' },
+    { country: 'Australia', exportFOB: 1200, importCIF: 1360, tariff: 0, unit: 'ton', currency: 'AUD' },
+    { country: 'Indonesia', exportFOB: 9800000, importCIF: 11200000, tariff: 10, unit: 'ton', currency: 'IDR' }
+  ]},
+  { good: 'Copper (per ton)', category: 'Raw Materials', entries: [
+    { country: 'USA', exportFOB: 8500, importCIF: 9200, tariff: 0, unit: 'ton', currency: 'USD' },
+    { country: 'China', exportFOB: 62000, importCIF: 68000, tariff: 0, unit: 'ton', currency: 'CNY' },
+    { country: 'Australia', exportFOB: 13200, importCIF: 14500, tariff: 0, unit: 'ton', currency: 'AUD' },
+    { country: 'Canada', exportFOB: 11500, importCIF: 12600, tariff: 0, unit: 'ton', currency: 'CAD' },
+    { country: 'Brazil', exportFOB: 48000, importCIF: 53000, tariff: 4, unit: 'ton', currency: 'BRL' },
+    { country: 'India', exportFOB: 720000, importCIF: 790000, tariff: 5, unit: 'ton', currency: 'INR' },
+    { country: 'Japan', exportFOB: 1320000, importCIF: 1450000, tariff: 0, unit: 'ton', currency: 'JPY' },
+    { country: 'Germany', exportFOB: 7800, importCIF: 8500, tariff: 0, unit: 'ton', currency: 'EUR' },
+    { country: 'South Korea', exportFOB: 9200000, importCIF: 10100000, tariff: 3, unit: 'ton', currency: 'KRW' },
+    { country: 'UK', exportFOB: 6800, importCIF: 7500, tariff: 0, unit: 'ton', currency: 'GBP' },
+    { country: 'Mexico', exportFOB: 148000, importCIF: 162000, tariff: 5, unit: 'ton', currency: 'MXN' },
+    { country: 'Indonesia', exportFOB: 135000000, importCIF: 148000000, tariff: 5, unit: 'ton', currency: 'IDR' }
+  ]},
+  { good: 'Aluminum (per ton)', category: 'Raw Materials', entries: [
+    { country: 'China', exportFOB: 16000, importCIF: 17800, tariff: 0, unit: 'ton', currency: 'CNY' },
+    { country: 'USA', exportFOB: 2400, importCIF: 2700, tariff: 10, unit: 'ton', currency: 'USD' },
+    { country: 'Canada', exportFOB: 3200, importCIF: 3500, tariff: 0, unit: 'ton', currency: 'CAD' },
+    { country: 'Australia', exportFOB: 3600, importCIF: 4000, tariff: 0, unit: 'ton', currency: 'AUD' },
+    { country: 'India', exportFOB: 200000, importCIF: 222000, tariff: 7.5, unit: 'ton', currency: 'INR' },
+    { country: 'Germany', exportFOB: 2200, importCIF: 2450, tariff: 6, unit: 'ton', currency: 'EUR' },
+    { country: 'Brazil', exportFOB: 12000, importCIF: 13500, tariff: 6, unit: 'ton', currency: 'BRL' },
+    { country: 'Japan', exportFOB: 340000, importCIF: 378000, tariff: 0, unit: 'ton', currency: 'JPY' },
+    { country: 'South Korea', exportFOB: 2800000, importCIF: 3100000, tariff: 3, unit: 'ton', currency: 'KRW' },
+    { country: 'UK', exportFOB: 1900, importCIF: 2120, tariff: 6, unit: 'ton', currency: 'GBP' },
+    { country: 'Mexico', exportFOB: 42000, importCIF: 47000, tariff: 5, unit: 'ton', currency: 'MXN' },
+    { country: 'Indonesia', exportFOB: 36000000, importCIF: 40000000, tariff: 5, unit: 'ton', currency: 'IDR' }
+  ]},
+  { good: 'Natural Rubber (per ton)', category: 'Raw Materials', entries: [
+    { country: 'Indonesia', exportFOB: 24000000, importCIF: 27000000, tariff: 0, unit: 'ton', currency: 'IDR' },
+    { country: 'India', exportFOB: 140000, importCIF: 158000, tariff: 25, unit: 'ton', currency: 'INR' },
+    { country: 'China', exportFOB: 12000, importCIF: 13500, tariff: 20, unit: 'ton', currency: 'CNY' },
+    { country: 'USA', exportFOB: 1800, importCIF: 2050, tariff: 0, unit: 'ton', currency: 'USD' },
+    { country: 'Japan', exportFOB: 260000, importCIF: 295000, tariff: 0, unit: 'ton', currency: 'JPY' },
+    { country: 'Germany', exportFOB: 1650, importCIF: 1870, tariff: 0, unit: 'ton', currency: 'EUR' },
+    { country: 'South Korea', exportFOB: 2400000, importCIF: 2700000, tariff: 3, unit: 'ton', currency: 'KRW' },
+    { country: 'Brazil', exportFOB: 9500, importCIF: 10800, tariff: 4, unit: 'ton', currency: 'BRL' },
+    { country: 'UK', exportFOB: 1450, importCIF: 1650, tariff: 0, unit: 'ton', currency: 'GBP' },
+    { country: 'Canada', exportFOB: 2400, importCIF: 2720, tariff: 0, unit: 'ton', currency: 'CAD' },
+    { country: 'Mexico', exportFOB: 32000, importCIF: 36500, tariff: 5, unit: 'ton', currency: 'MXN' },
+    { country: 'Australia', exportFOB: 2700, importCIF: 3060, tariff: 0, unit: 'ton', currency: 'AUD' }
+  ]},
+
+  // --- Household ---
+  { good: 'Washing Machine', category: 'Household', entries: [
+    { country: 'China', exportFOB: 1400, importCIF: 1650, tariff: 0, unit: 'unit', currency: 'CNY' },
+    { country: 'South Korea', exportFOB: 420000, importCIF: 490000, tariff: 8, unit: 'unit', currency: 'KRW' },
+    { country: 'USA', exportFOB: 380, importCIF: 440, tariff: 20, unit: 'unit', currency: 'USD' },
+    { country: 'Germany', exportFOB: 350, importCIF: 410, tariff: 2.2, unit: 'unit', currency: 'EUR' },
+    { country: 'Japan', exportFOB: 52000, importCIF: 60000, tariff: 0, unit: 'unit', currency: 'JPY' },
+    { country: 'India', exportFOB: 16000, importCIF: 19000, tariff: 20, unit: 'unit', currency: 'INR' },
+    { country: 'Brazil', exportFOB: 2800, importCIF: 3300, tariff: 35, unit: 'unit', currency: 'BRL' },
+    { country: 'Mexico', exportFOB: 6500, importCIF: 7600, tariff: 15, unit: 'unit', currency: 'MXN' },
+    { country: 'UK', exportFOB: 300, importCIF: 350, tariff: 2.2, unit: 'unit', currency: 'GBP' },
+    { country: 'Canada', exportFOB: 500, importCIF: 580, tariff: 8, unit: 'unit', currency: 'CAD' },
+    { country: 'Australia', exportFOB: 580, importCIF: 680, tariff: 5, unit: 'unit', currency: 'AUD' },
+    { country: 'Indonesia', exportFOB: 3800000, importCIF: 4400000, tariff: 10, unit: 'unit', currency: 'IDR' }
+  ]},
+  { good: 'Air Conditioner', category: 'Household', entries: [
+    { country: 'China', exportFOB: 2200, importCIF: 2600, tariff: 0, unit: 'unit', currency: 'CNY' },
+    { country: 'Japan', exportFOB: 82000, importCIF: 95000, tariff: 0, unit: 'unit', currency: 'JPY' },
+    { country: 'South Korea', exportFOB: 580000, importCIF: 670000, tariff: 8, unit: 'unit', currency: 'KRW' },
+    { country: 'USA', exportFOB: 520, importCIF: 600, tariff: 2.2, unit: 'unit', currency: 'USD' },
+    { country: 'India', exportFOB: 24000, importCIF: 28000, tariff: 20, unit: 'unit', currency: 'INR' },
+    { country: 'Germany', exportFOB: 480, importCIF: 560, tariff: 2.2, unit: 'unit', currency: 'EUR' },
+    { country: 'Brazil', exportFOB: 3500, importCIF: 4100, tariff: 35, unit: 'unit', currency: 'BRL' },
+    { country: 'Indonesia', exportFOB: 5200000, importCIF: 6000000, tariff: 10, unit: 'unit', currency: 'IDR' },
+    { country: 'Mexico', exportFOB: 9500, importCIF: 11000, tariff: 15, unit: 'unit', currency: 'MXN' },
+    { country: 'UK', exportFOB: 420, importCIF: 490, tariff: 2.2, unit: 'unit', currency: 'GBP' },
+    { country: 'Canada', exportFOB: 680, importCIF: 790, tariff: 0, unit: 'unit', currency: 'CAD' },
+    { country: 'Australia', exportFOB: 780, importCIF: 900, tariff: 5, unit: 'unit', currency: 'AUD' }
+  ]},
+  { good: 'Ceramic Tiles (per sqm)', category: 'Household', entries: [
+    { country: 'China', exportFOB: 28, importCIF: 35, tariff: 0, unit: 'sqm', currency: 'CNY' },
+    { country: 'India', exportFOB: 280, importCIF: 350, tariff: 20, unit: 'sqm', currency: 'INR' },
+    { country: 'Brazil', exportFOB: 32, importCIF: 40, tariff: 12, unit: 'sqm', currency: 'BRL' },
+    { country: 'USA', exportFOB: 8.50, importCIF: 10.50, tariff: 8.5, unit: 'sqm', currency: 'USD' },
+    { country: 'Germany', exportFOB: 7.20, importCIF: 8.90, tariff: 4, unit: 'sqm', currency: 'EUR' },
+    { country: 'Mexico', exportFOB: 120, importCIF: 150, tariff: 15, unit: 'sqm', currency: 'MXN' },
+    { country: 'Indonesia', exportFOB: 55000, importCIF: 68000, tariff: 10, unit: 'sqm', currency: 'IDR' },
+    { country: 'Japan', exportFOB: 1200, importCIF: 1480, tariff: 3.2, unit: 'sqm', currency: 'JPY' },
+    { country: 'UK', exportFOB: 6.50, importCIF: 8.00, tariff: 4, unit: 'sqm', currency: 'GBP' },
+    { country: 'South Korea', exportFOB: 8500, importCIF: 10500, tariff: 8, unit: 'sqm', currency: 'KRW' },
+    { country: 'Canada', exportFOB: 11, importCIF: 13.50, tariff: 6, unit: 'sqm', currency: 'CAD' },
+    { country: 'Australia', exportFOB: 12.50, importCIF: 15.50, tariff: 5, unit: 'sqm', currency: 'AUD' }
+  ]},
+  { good: 'Furniture Set (Living Room)', category: 'Household', entries: [
+    { country: 'China', exportFOB: 5500, importCIF: 6500, tariff: 0, unit: 'set', currency: 'CNY' },
+    { country: 'USA', exportFOB: 1800, importCIF: 2100, tariff: 0, unit: 'set', currency: 'USD' },
+    { country: 'India', exportFOB: 85000, importCIF: 100000, tariff: 20, unit: 'set', currency: 'INR' },
+    { country: 'Germany', exportFOB: 1600, importCIF: 1900, tariff: 0, unit: 'set', currency: 'EUR' },
+    { country: 'Indonesia', exportFOB: 12000000, importCIF: 14200000, tariff: 10, unit: 'set', currency: 'IDR' },
+    { country: 'Brazil', exportFOB: 8500, importCIF: 10000, tariff: 18, unit: 'set', currency: 'BRL' },
+    { country: 'Mexico', exportFOB: 28000, importCIF: 33000, tariff: 15, unit: 'set', currency: 'MXN' },
+    { country: 'Japan', exportFOB: 280000, importCIF: 330000, tariff: 0, unit: 'set', currency: 'JPY' },
+    { country: 'UK', exportFOB: 1400, importCIF: 1650, tariff: 0, unit: 'set', currency: 'GBP' },
+    { country: 'Canada', exportFOB: 2400, importCIF: 2800, tariff: 0, unit: 'set', currency: 'CAD' },
+    { country: 'South Korea', exportFOB: 2200000, importCIF: 2600000, tariff: 8, unit: 'set', currency: 'KRW' },
+    { country: 'Australia', exportFOB: 2800, importCIF: 3300, tariff: 5, unit: 'set', currency: 'AUD' }
+  ]}
+];
+
+// ===================== TAB SWITCHING =====================
+function switchTab(tab) {
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+
+  if (tab === 'local') {
+    document.querySelectorAll('.tab-btn')[0].classList.add('active');
+    document.getElementById('tab-local').classList.add('active');
+  } else {
+    document.querySelectorAll('.tab-btn')[1].classList.add('active');
+    document.getElementById('tab-import-export').classList.add('active');
+  }
+}
+
+// ===================== LOCAL PRICE TRACKER =====================
+const STORAGE_KEY = 'priceCheckerItems';
+let items = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
+let editingId = null;
+
+function generateId() {
+  return Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+}
+
+function persist() {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(items));
+}
+
+function formatCurrency(n) {
+  return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(n);
+}
+
+function saveItem() {
+  const name = document.getElementById('item-name').value.trim();
+  const price = parseFloat(document.getElementById('item-price').value);
+  const category = document.getElementById('item-category').value;
+  const store = document.getElementById('item-store').value.trim();
+
+  if (!name) return alert('Please enter an item name.');
+  if (isNaN(price) || price < 0) return alert('Please enter a valid price.');
+
+  if (editingId) {
+    const idx = items.findIndex(i => i.id === editingId);
+    if (idx !== -1) {
+      items[idx] = { ...items[idx], name, price, category, store };
+    }
+    cancelEdit();
+  } else {
+    items.push({
+      id: generateId(),
+      name,
+      price,
+      category,
+      store: store || 'N/A',
+      date: new Date().toISOString()
+    });
+  }
+
+  persist();
+  clearForm();
+  renderTable();
+  updateStats();
+}
+
+function deleteItem(id) {
+  if (!confirm('Delete this item?')) return;
+  items = items.filter(i => i.id !== id);
+  persist();
+  renderTable();
+  updateStats();
+}
+
+function editItem(id) {
+  const item = items.find(i => i.id === id);
+  if (!item) return;
+
+  editingId = id;
+  document.getElementById('item-name').value = item.name;
+  document.getElementById('item-price').value = item.price;
+  document.getElementById('item-category').value = item.category;
+  document.getElementById('item-store').value = item.store === 'N/A' ? '' : item.store;
+  document.getElementById('form-title').textContent = 'Edit Item';
+  document.getElementById('btn-save').textContent = 'Update';
+  document.getElementById('btn-cancel').style.display = '';
+  document.getElementById('item-name').focus();
+}
+
+function cancelEdit() {
+  editingId = null;
+  document.getElementById('form-title').textContent = 'Add New Item';
+  document.getElementById('btn-save').textContent = 'Add Item';
+  document.getElementById('btn-cancel').style.display = 'none';
+  clearForm();
+}
+
+function clearForm() {
+  document.getElementById('item-name').value = '';
+  document.getElementById('item-price').value = '';
+  document.getElementById('item-category').value = 'Groceries';
+  document.getElementById('item-store').value = '';
+}
+
+function getFilteredSorted() {
+  const search = document.getElementById('search').value.toLowerCase();
+  const cat = document.getElementById('filter-category').value;
+  const sort = document.getElementById('sort-by').value;
+
+  let list = items.filter(i => {
+    const matchSearch = i.name.toLowerCase().includes(search) ||
+                        i.store.toLowerCase().includes(search);
+    const matchCat = !cat || i.category === cat;
+    return matchSearch && matchCat;
+  });
+
+  list.sort((a, b) => {
+    switch (sort) {
+      case 'name-asc':   return a.name.localeCompare(b.name);
+      case 'name-desc':  return b.name.localeCompare(a.name);
+      case 'price-asc':  return a.price - b.price;
+      case 'price-desc': return b.price - a.price;
+      case 'date-desc':  return new Date(b.date) - new Date(a.date);
+      case 'date-asc':   return new Date(a.date) - new Date(b.date);
+    }
+  });
+
+  return list;
+}
+
+function renderTable() {
+  const tbody = document.getElementById('items-body');
+  const empty = document.getElementById('empty-state');
+  const list = getFilteredSorted();
+
+  if (list.length === 0) {
+    tbody.innerHTML = '';
+    empty.style.display = '';
+    return;
+  }
+
+  empty.style.display = 'none';
+
+  tbody.innerHTML = list.map(i => `
+    <tr>
+      <td><strong>${esc(i.name)}</strong></td>
+      <td class="price-cell">${formatCurrency(i.price)}</td>
+      <td><span class="category-badge">${esc(i.category)}</span></td>
+      <td>${esc(i.store)}</td>
+      <td>${new Date(i.date).toLocaleDateString()}</td>
+      <td class="actions">
+        <button class="btn btn-edit" onclick="editItem('${i.id}')">Edit</button>
+        <button class="btn btn-danger" onclick="deleteItem('${i.id}')">Delete</button>
+      </td>
+    </tr>
+  `).join('');
+}
+
+function updateStats() {
+  document.getElementById('stat-total').textContent = items.length;
+
+  if (items.length === 0) {
+    document.getElementById('stat-cheapest').textContent = '--';
+    document.getElementById('stat-expensive').textContent = '--';
+    document.getElementById('stat-avg').textContent = '--';
+    return;
+  }
+
+  const prices = items.map(i => i.price);
+  const min = Math.min(...prices);
+  const max = Math.max(...prices);
+  const avg = prices.reduce((s, p) => s + p, 0) / prices.length;
+
+  document.getElementById('stat-cheapest').textContent = formatCurrency(min);
+  document.getElementById('stat-expensive').textContent = formatCurrency(max);
+  document.getElementById('stat-avg').textContent = formatCurrency(avg);
+}
+
+function esc(str) {
+  const d = document.createElement('div');
+  d.textContent = str;
+  return d.innerHTML;
+}
+
+// ===================== IMPORT/EXPORT SECTION =====================
+function toUSD(amount, currency) {
+  return amount * (FX[currency] || 1);
+}
+
+function formatPrice(amount, currency, showUSD) {
+  if (showUSD) {
+    const usd = toUSD(amount, currency);
+    return '$' + usd.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  }
+  const sym = CURRENCY_SYMBOLS[currency] || currency + ' ';
+  return sym + amount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
+function initIE() {
+  // Populate goods dropdown
+  filterIEGoods();
+
+  // Populate country filter
+  const countrySelect = document.getElementById('ie-country-filter');
+  const countries = [...new Set(IE_DATA.flatMap(g => g.entries.map(e => e.country)))].sort();
+  countries.forEach(c => {
+    const opt = document.createElement('option');
+    opt.value = c;
+    opt.textContent = (FLAGS[c] || '') + ' ' + c;
+    countrySelect.appendChild(opt);
+  });
+
+  renderIE();
+}
+
+function filterIEGoods() {
+  const catFilter = document.getElementById('ie-category-filter').value;
+  const goodSelect = document.getElementById('ie-good');
+  const currentVal = goodSelect.value;
+
+  goodSelect.innerHTML = '';
+  const filtered = catFilter ? IE_DATA.filter(g => g.category === catFilter) : IE_DATA;
+
+  filtered.forEach(g => {
+    const opt = document.createElement('option');
+    opt.value = g.good;
+    opt.textContent = g.good + '  [' + g.category + ']';
+    goodSelect.appendChild(opt);
+  });
+
+  // Restore selection if still valid
+  if (filtered.find(g => g.good === currentVal)) {
+    goodSelect.value = currentVal;
+  }
+
+  renderIE();
+}
+
+function renderIE() {
+  const goodName = document.getElementById('ie-good').value;
+  const countryFilter = document.getElementById('ie-country-filter').value;
+  const showUSD = document.getElementById('ie-show-usd').checked;
+
+  const goodData = IE_DATA.find(g => g.good === goodName);
+  if (!goodData) return;
+
+  let entries = goodData.entries;
+  if (countryFilter) {
+    entries = entries.filter(e => e.country === countryFilter);
+  }
+
+  // Compute landed costs in USD for comparison
+  const withLanded = entries.map(e => {
+    const cifUSD = toUSD(e.importCIF, e.currency);
+    const landedUSD = cifUSD * (1 + e.tariff / 100);
+    const exportUSD = toUSD(e.exportFOB, e.currency);
+    return { ...e, cifUSD, landedUSD, exportUSD };
+  });
+
+  withLanded.sort((a, b) => a.landedUSD - b.landedUSD);
+
+  const minLanded = Math.min(...withLanded.map(w => w.landedUSD));
+  const maxLanded = Math.max(...withLanded.map(w => w.landedUSD));
+
+  // Update title
+  document.getElementById('ie-table-title').textContent = 'Price Comparison: ' + goodName;
+
+  // Render table
+  const tbody = document.getElementById('ie-table-body');
+  tbody.innerHTML = withLanded.map(e => {
+    const landedLocal = e.importCIF * (1 + e.tariff / 100);
+    let rowClass = '';
+    if (withLanded.length > 1) {
+      if (e.landedUSD === minLanded) rowClass = 'row-cheapest';
+      else if (e.landedUSD === maxLanded) rowClass = 'row-expensive';
+    }
+
+    return `<tr class="${rowClass}">
+      <td><span class="flag">${FLAGS[e.country] || ''}</span><strong>${esc(e.country)}</strong></td>
+      <td>${formatPrice(e.exportFOB, e.currency, showUSD)}</td>
+      <td>${formatPrice(e.importCIF, e.currency, showUSD)}</td>
+      <td>${e.tariff}%</td>
+      <td class="price-cell">${formatPrice(landedLocal, e.currency, showUSD)}</td>
+      <td>${esc(e.unit)}</td>
+    </tr>`;
+  }).join('');
+
+  // Render stats
+  renderIEStats(withLanded, goodData);
+
+  // Render bar chart
+  renderIEChart(withLanded);
+}
+
+function renderIEStats(data, goodData) {
+  const statsEl = document.getElementById('ie-stats');
+  if (data.length === 0) {
+    statsEl.innerHTML = '';
+    return;
+  }
+
+  const cheapest = data[0];
+  const expensive = data[data.length - 1];
+  const spread = expensive.landedUSD > 0
+    ? ((expensive.landedUSD - cheapest.landedUSD) / cheapest.landedUSD * 100).toFixed(1)
+    : 0;
+  const avgLanded = data.reduce((s, d) => s + d.landedUSD, 0) / data.length;
+  const lowestExport = [...data].sort((a, b) => a.exportUSD - b.exportUSD)[0];
+
+  statsEl.innerHTML = `
+    <div class="ie-stat">
+      <div class="ie-stat-label">Cheapest Source (Landed)</div>
+      <div class="ie-stat-value">${FLAGS[cheapest.country] || ''} ${cheapest.country}</div>
+      <div class="ie-stat-sub">${formatCurrency(cheapest.landedUSD)} per ${cheapest.unit}</div>
+    </div>
+    <div class="ie-stat">
+      <div class="ie-stat-label">Most Expensive (Landed)</div>
+      <div class="ie-stat-value">${FLAGS[expensive.country] || ''} ${expensive.country}</div>
+      <div class="ie-stat-sub">${formatCurrency(expensive.landedUSD)} per ${expensive.unit}</div>
+    </div>
+    <div class="ie-stat">
+      <div class="ie-stat-label">Price Spread</div>
+      <div class="ie-stat-value">${spread}%</div>
+      <div class="ie-stat-sub">Between cheapest and most expensive</div>
+    </div>
+    <div class="ie-stat">
+      <div class="ie-stat-label">Best Export Price (FOB)</div>
+      <div class="ie-stat-value">${FLAGS[lowestExport.country] || ''} ${lowestExport.country}</div>
+      <div class="ie-stat-sub">${formatCurrency(lowestExport.exportUSD)} per ${lowestExport.unit}</div>
+    </div>
+  `;
+}
+
+function renderIEChart(data) {
+  const chartEl = document.getElementById('ie-bar-chart');
+  if (data.length === 0) {
+    chartEl.innerHTML = '<p style="color:#aaa;text-align:center;padding:20px;">No data to display</p>';
+    return;
+  }
+
+  const maxVal = Math.max(...data.map(d => d.landedUSD));
+  const minVal = Math.min(...data.map(d => d.landedUSD));
+
+  chartEl.innerHTML = data.map(d => {
+    const pct = maxVal > 0 ? (d.landedUSD / maxVal * 100) : 0;
+    let barClass = 'normal';
+    if (data.length > 1) {
+      if (d.landedUSD === minVal) barClass = 'cheapest';
+      else if (d.landedUSD === maxVal) barClass = 'expensive';
+    }
+
+    return `<div class="bar-row">
+      <div class="bar-label">${FLAGS[d.country] || ''} ${d.country}</div>
+      <div class="bar-track">
+        <div class="bar-fill ${barClass}" style="width: ${Math.max(pct, 8)}%">
+          ${formatCurrency(d.landedUSD)}
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+// ===================== INIT =====================
+renderTable();
+updateStats();
+initIE();
+</script>
+
+</body>
+</html>
