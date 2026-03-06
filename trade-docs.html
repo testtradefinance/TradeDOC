@@ -1,0 +1,1681 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Trade Finance DocManager</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    background: #f0f3f6;
+    color: #1a1a2e;
+    min-height: 100vh;
+  }
+
+  header {
+    background: linear-gradient(135deg, #0a2e4d, #0d7c8c);
+    color: #fff;
+    padding: 24px 32px 0;
+    text-align: center;
+  }
+
+  header h1 { font-size: 1.8rem; font-weight: 700; }
+  header p { opacity: 0.75; margin-top: 4px; font-size: 0.95rem; }
+
+  .tabs {
+    display: flex; gap: 0; margin-top: 20px; justify-content: center;
+  }
+
+  .tab-btn {
+    padding: 12px 32px; border: none;
+    background: rgba(255,255,255,0.1);
+    color: rgba(255,255,255,0.7);
+    font-size: 0.95rem; font-weight: 600;
+    cursor: pointer; transition: all 0.2s;
+    border-radius: 10px 10px 0 0;
+  }
+
+  .tab-btn:hover { background: rgba(255,255,255,0.2); color: #fff; }
+
+  .tab-btn.active {
+    background: #f0f3f6; color: #0a2e4d;
+  }
+
+  .container { max-width: 1100px; margin: 0 auto; padding: 24px 16px; }
+
+  .card {
+    background: #fff; border-radius: 12px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+    padding: 24px; margin-bottom: 24px;
+  }
+
+  .card h2 { font-size: 1.15rem; margin-bottom: 16px; color: #0a2e4d; }
+
+  .tab-content { display: none; }
+  .tab-content.active { display: block; }
+
+  /* ---------- Buttons ---------- */
+  .btn {
+    padding: 10px 20px; border: none; border-radius: 8px;
+    font-size: 0.9rem; font-weight: 600; cursor: pointer;
+    transition: all 0.2s; display: inline-flex; align-items: center; gap: 6px;
+  }
+  .btn-primary { background: #0d7c8c; color: #fff; }
+  .btn-primary:hover { background: #0a6a78; }
+  .btn-secondary { background: #e2e8f0; color: #334155; }
+  .btn-secondary:hover { background: #cbd5e1; }
+  .btn-danger { background: #fee2e2; color: #dc2626; }
+  .btn-danger:hover { background: #fecaca; }
+  .btn-sm { padding: 6px 14px; font-size: 0.82rem; }
+
+  /* ---------- Drop Zone ---------- */
+  .drop-zone {
+    border: 3px dashed #cbd5e1; border-radius: 16px;
+    padding: 60px 24px; text-align: center;
+    cursor: pointer; transition: all 0.3s; background: #f8fafc;
+  }
+  .drop-zone:hover, .drop-zone.drag-over {
+    border-color: #0d7c8c; background: rgba(13,124,140,0.05);
+  }
+  .drop-zone-icon { font-size: 3rem; margin-bottom: 12px; display: block; }
+  .drop-zone h3 { font-size: 1.1rem; color: #334155; margin-bottom: 8px; }
+  .drop-zone p { color: #6b7280; font-size: 0.85rem; }
+
+  #file-input { display: none; }
+
+  /* ---------- Upload Queue ---------- */
+  .queue-item {
+    display: flex; align-items: center; gap: 16px;
+    padding: 14px 0; border-bottom: 1px solid #f1f5f9;
+  }
+  .queue-item:last-child { border-bottom: none; }
+  .queue-icon {
+    width: 48px; height: 48px; border-radius: 8px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 1.5rem; background: #f1f5f9; flex-shrink: 0;
+  }
+  .queue-icon img { width: 48px; height: 48px; border-radius: 8px; object-fit: cover; }
+  .queue-info { flex: 1; min-width: 0; }
+  .queue-info .name { font-weight: 600; font-size: 0.9rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .queue-info .meta { font-size: 0.8rem; color: #6b7280; margin-top: 2px; }
+
+  /* ---------- Progress Bar ---------- */
+  .progress-bar {
+    height: 6px; background: #e5e7eb; border-radius: 3px;
+    overflow: hidden; margin-top: 8px;
+  }
+  .progress-fill {
+    height: 100%; border-radius: 3px; transition: width 0.4s;
+    background: linear-gradient(90deg, #0d7c8c, #12a3b5);
+  }
+
+  /* ---------- Status Badge ---------- */
+  .badge {
+    display: inline-block; padding: 3px 10px; border-radius: 20px;
+    font-size: 0.78rem; font-weight: 600;
+  }
+  .badge-processing { background: #dbeafe; color: #1d4ed8; }
+  .badge-classified { background: #fef3c7; color: #92400e; }
+  .badge-reviewed { background: #d1fae5; color: #065f46; }
+  .badge-exported { background: #e0e7ff; color: #3730a3; }
+
+  /* ---------- Type Badge ---------- */
+  .type-badge {
+    display: inline-block; padding: 3px 10px; border-radius: 20px;
+    font-size: 0.78rem; font-weight: 600; color: #fff;
+  }
+
+  /* ---------- Confidence Bar ---------- */
+  .conf-row { display: flex; align-items: center; gap: 12px; margin-bottom: 10px; }
+  .conf-label { width: 180px; font-size: 0.85rem; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .conf-track { flex: 1; height: 8px; background: #e5e7eb; border-radius: 4px; overflow: hidden; }
+  .conf-fill { height: 100%; border-radius: 4px; transition: width 0.5s; }
+  .conf-value { width: 50px; text-align: right; font-size: 0.82rem; font-weight: 600; }
+
+  .conf-high { background: #10b981; }
+  .conf-med { background: #f59e0b; }
+  .conf-low { background: #ef4444; }
+
+  /* ---------- Classification Card ---------- */
+  .class-result {
+    display: flex; align-items: center; gap: 16px;
+    padding: 16px; background: #f0fdf4; border-radius: 10px; margin-bottom: 16px;
+  }
+  .class-result .class-icon { font-size: 2.5rem; }
+  .class-result .class-type { font-size: 1.2rem; font-weight: 700; color: #0a2e4d; }
+  .class-result .class-conf { font-size: 0.9rem; color: #6b7280; }
+
+  .override-row {
+    display: flex; gap: 12px; align-items: center; margin-top: 16px;
+    flex-wrap: wrap;
+  }
+  .override-row select {
+    padding: 8px 12px; border: 2px solid #e2e8f0; border-radius: 8px;
+    font-size: 0.9rem; flex: 1; min-width: 200px;
+  }
+
+  /* ---------- Extraction Grid ---------- */
+  .extraction-grid {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 16px;
+  }
+  .field-group { display: flex; flex-direction: column; }
+  .field-group.full-width { grid-column: 1 / -1; }
+  .field-group label {
+    font-size: 0.82rem; font-weight: 600; color: #475569;
+    margin-bottom: 4px; display: flex; align-items: center; gap: 6px;
+  }
+  .field-group input, .field-group textarea {
+    padding: 10px 12px; border: 2px solid #e2e8f0; border-radius: 8px;
+    font-size: 0.9rem; font-family: inherit; transition: border-color 0.2s;
+  }
+  .field-group input:focus, .field-group textarea:focus {
+    outline: none; border-color: #0d7c8c;
+  }
+  .field-group textarea { resize: vertical; min-height: 70px; }
+
+  .conf-dot {
+    width: 8px; height: 8px; border-radius: 50%; display: inline-block;
+  }
+  .conf-dot.high { background: #10b981; }
+  .conf-dot.med { background: #f59e0b; }
+  .conf-dot.low { background: #ef4444; }
+
+  .field-group.low-conf { border-left: 3px solid #f59e0b; padding-left: 12px; }
+
+  /* ---------- Stats ---------- */
+  .stats { display: flex; gap: 16px; margin-bottom: 24px; flex-wrap: wrap; }
+  .stat-box {
+    flex: 1; min-width: 140px; background: #fff; border-radius: 12px;
+    padding: 20px; text-align: center;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+  }
+  .stat-box .stat-num { font-size: 2rem; font-weight: 700; color: #0d7c8c; }
+  .stat-box .stat-label { font-size: 0.82rem; color: #6b7280; margin-top: 4px; }
+
+  /* ---------- Toolbar ---------- */
+  .toolbar {
+    display: flex; gap: 12px; margin-bottom: 20px; flex-wrap: wrap;
+    align-items: center;
+  }
+  .toolbar input, .toolbar select {
+    padding: 10px 14px; border: 2px solid #e2e8f0; border-radius: 8px;
+    font-size: 0.9rem; font-family: inherit;
+  }
+  .toolbar input:focus, .toolbar select:focus { outline: none; border-color: #0d7c8c; }
+  .search-input { flex: 1; min-width: 200px; }
+
+  /* ---------- Table ---------- */
+  table { width: 100%; border-collapse: collapse; }
+  th { text-align: left; padding: 12px; font-size: 0.82rem; color: #6b7280; border-bottom: 2px solid #e2e8f0; }
+  td { padding: 12px; font-size: 0.88rem; border-bottom: 1px solid #f1f5f9; }
+  tr:hover td { background: #f8fafc; }
+  .actions { display: flex; gap: 8px; }
+
+  .empty-state {
+    text-align: center; padding: 48px 16px; color: #94a3b8;
+  }
+  .empty-state .empty-icon { font-size: 3rem; margin-bottom: 12px; }
+
+  /* ---------- Processing Overlay ---------- */
+  .overlay {
+    position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+    background: rgba(0,0,0,0.5); backdrop-filter: blur(4px);
+    display: flex; align-items: center; justify-content: center;
+    z-index: 1000;
+  }
+  .overlay.hidden { display: none; }
+  .overlay-card {
+    background: #fff; border-radius: 16px; padding: 32px;
+    max-width: 400px; width: 90%; text-align: center;
+  }
+  .overlay-card h3 { margin-bottom: 24px; color: #0a2e4d; }
+
+  .step {
+    display: flex; align-items: center; gap: 12px;
+    padding: 12px 0; text-align: left; font-size: 0.9rem;
+  }
+  .step-icon {
+    width: 28px; height: 28px; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 0.8rem; flex-shrink: 0;
+  }
+  .step.pending .step-icon { background: #e5e7eb; color: #9ca3af; }
+  .step.active .step-icon { background: #dbeafe; color: #2563eb; animation: pulse 1s infinite; }
+  .step.completed .step-icon { background: #d1fae5; color: #059669; }
+  .step.pending .step-text { color: #9ca3af; }
+  .step.active .step-text { color: #1e40af; font-weight: 600; }
+  .step.completed .step-text { color: #059669; }
+
+  @keyframes pulse {
+    0%, 100% { transform: scale(1); }
+    50% { transform: scale(1.15); }
+  }
+
+  @keyframes spin {
+    to { transform: rotate(360deg); }
+  }
+  .spinner { animation: spin 1s linear infinite; display: inline-block; }
+
+  /* ---------- Toast ---------- */
+  .toast-container {
+    position: fixed; top: 20px; right: 20px; z-index: 2000;
+    display: flex; flex-direction: column; gap: 8px;
+  }
+  .toast {
+    padding: 12px 20px; border-radius: 10px; font-size: 0.88rem;
+    font-weight: 500; box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    animation: slideIn 0.3s; min-width: 250px;
+  }
+  .toast-success { background: #d1fae5; color: #065f46; }
+  .toast-error { background: #fee2e2; color: #991b1b; }
+  .toast-info { background: #dbeafe; color: #1e40af; }
+
+  @keyframes slideIn {
+    from { transform: translateX(100%); opacity: 0; }
+    to { transform: translateX(0); opacity: 1; }
+  }
+
+  /* ---------- Back Link ---------- */
+  .back-link {
+    color: #0d7c8c; cursor: pointer; font-weight: 600;
+    font-size: 0.9rem; margin-bottom: 16px; display: inline-block;
+  }
+  .back-link:hover { text-decoration: underline; }
+
+  /* ---------- Button Group ---------- */
+  .btn-group { display: flex; gap: 12px; margin-top: 20px; flex-wrap: wrap; }
+
+  /* ---------- Responsive ---------- */
+  @media (max-width: 700px) {
+    header { padding: 16px 16px 0; }
+    header h1 { font-size: 1.3rem; }
+    .tab-btn { padding: 10px 16px; font-size: 0.85rem; }
+    .extraction-grid { grid-template-columns: 1fr; }
+    .toolbar { flex-direction: column; }
+    .search-input { min-width: 100%; }
+    .stats { flex-direction: column; }
+    table { font-size: 0.8rem; }
+    th, td { padding: 8px 6px; }
+    .conf-label { width: 120px; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Trade Finance DocManager</h1>
+  <p>AI-Powered Document Classification &amp; Data Extraction</p>
+  <div class="tabs">
+    <button class="tab-btn active" onclick="switchTab('upload')">Upload</button>
+    <button class="tab-btn" onclick="switchTab('dashboard')">Dashboard</button>
+    <button class="tab-btn" onclick="switchTab('detail')" id="detail-tab-btn" style="display:none">Document Detail</button>
+  </div>
+</header>
+
+<!-- ==================== UPLOAD TAB ==================== -->
+<div class="tab-content active" id="tab-upload">
+  <div class="container">
+    <div class="card">
+      <div class="drop-zone" id="drop-zone" onclick="document.getElementById('file-input').click()">
+        <span class="drop-zone-icon">&#128196;</span>
+        <h3>Drag &amp; drop trade documents here</h3>
+        <p>or click to browse files</p>
+        <p style="margin-top:8px; font-size:0.8rem; color:#94a3b8;">Supports PDF, JPG, PNG, DOC, DOCX (max 10MB)</p>
+      </div>
+      <input type="file" id="file-input" multiple accept=".pdf,.jpg,.jpeg,.png,.tif,.tiff,.doc,.docx">
+    </div>
+
+    <div class="card" id="queue-card" style="display:none">
+      <h2>Upload Queue</h2>
+      <div id="queue-list"></div>
+    </div>
+
+    <div class="card" id="classification-card" style="display:none">
+      <h2>Classification Result</h2>
+      <div id="classification-result"></div>
+    </div>
+
+    <div class="card" id="extraction-card" style="display:none">
+      <h2>Extracted Data</h2>
+      <div id="extraction-result"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ==================== DASHBOARD TAB ==================== -->
+<div class="tab-content" id="tab-dashboard">
+  <div class="container">
+    <div class="stats" id="dash-stats"></div>
+    <div class="card">
+      <div class="toolbar">
+        <input type="text" class="search-input" id="dash-search" placeholder="Search documents..." oninput="renderDashboard()">
+        <select id="dash-type-filter" onchange="renderDashboard()">
+          <option value="">All Types</option>
+        </select>
+        <select id="dash-status-filter" onchange="renderDashboard()">
+          <option value="">All Statuses</option>
+          <option value="processing">Processing</option>
+          <option value="classified">Classified</option>
+          <option value="reviewed">Reviewed</option>
+          <option value="exported">Exported</option>
+        </select>
+        <button class="btn btn-secondary btn-sm" onclick="exportAllJSON()">Export JSON</button>
+        <button class="btn btn-secondary btn-sm" onclick="exportAllCSV()">Export CSV</button>
+      </div>
+      <div id="dash-table"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ==================== DETAIL TAB ==================== -->
+<div class="tab-content" id="tab-detail">
+  <div class="container">
+    <span class="back-link" onclick="switchTab('dashboard')">&larr; Back to Dashboard</span>
+    <div id="detail-content"></div>
+  </div>
+</div>
+
+<!-- ==================== PROCESSING OVERLAY ==================== -->
+<div class="overlay hidden" id="processing-overlay">
+  <div class="overlay-card">
+    <h3>Processing Document</h3>
+    <div id="processing-steps"></div>
+  </div>
+</div>
+
+<!-- ==================== TOAST CONTAINER ==================== -->
+<div class="toast-container" id="toast-container"></div>
+
+<script>
+/* ============================================================
+   DATA & CONFIGURATION
+   ============================================================ */
+const STORAGE_KEY = 'tradeDocsState';
+
+const DOC_TYPES = {
+  bill_of_lading: {
+    label: 'Bill of Lading', short: 'B/L', icon: '\u26F5', color: '#2563eb',
+    fields: [
+      { key: 'blNumber', label: 'B/L Number' },
+      { key: 'shipper', label: 'Shipper' },
+      { key: 'consignee', label: 'Consignee' },
+      { key: 'notifyParty', label: 'Notify Party' },
+      { key: 'vesselName', label: 'Vessel Name' },
+      { key: 'voyageNumber', label: 'Voyage Number' },
+      { key: 'portOfLoading', label: 'Port of Loading' },
+      { key: 'portOfDischarge', label: 'Port of Discharge' },
+      { key: 'placeOfDelivery', label: 'Place of Delivery' },
+      { key: 'dateOfIssue', label: 'Date of Issue', type: 'date' },
+      { key: 'numberOfContainers', label: 'Number of Containers' },
+      { key: 'containerNumbers', label: 'Container Numbers' },
+      { key: 'grossWeight', label: 'Gross Weight (kg)' },
+      { key: 'goodsDescription', label: 'Description of Goods', type: 'textarea' },
+      { key: 'freightTerms', label: 'Freight Terms' }
+    ]
+  },
+  letter_of_credit: {
+    label: 'Letter of Credit', short: 'L/C', icon: '\uD83D\uDCB3', color: '#7c3aed',
+    fields: [
+      { key: 'lcNumber', label: 'L/C Number' },
+      { key: 'issuingBank', label: 'Issuing Bank' },
+      { key: 'advisingBank', label: 'Advising Bank' },
+      { key: 'applicant', label: 'Applicant' },
+      { key: 'beneficiary', label: 'Beneficiary' },
+      { key: 'amount', label: 'Amount' },
+      { key: 'currency', label: 'Currency' },
+      { key: 'dateOfIssue', label: 'Date of Issue', type: 'date' },
+      { key: 'expiryDate', label: 'Expiry Date', type: 'date' },
+      { key: 'latestShipmentDate', label: 'Latest Shipment Date', type: 'date' },
+      { key: 'portOfLoading', label: 'Port of Loading' },
+      { key: 'portOfDischarge', label: 'Port of Discharge' },
+      { key: 'goodsDescription', label: 'Description of Goods', type: 'textarea' },
+      { key: 'incoterms', label: 'Incoterms' },
+      { key: 'partialShipment', label: 'Partial Shipment' },
+      { key: 'transhipment', label: 'Transhipment' }
+    ]
+  },
+  commercial_invoice: {
+    label: 'Commercial Invoice', short: 'Invoice', icon: '\uD83D\uDCC4', color: '#059669',
+    fields: [
+      { key: 'invoiceNumber', label: 'Invoice Number' },
+      { key: 'invoiceDate', label: 'Invoice Date', type: 'date' },
+      { key: 'seller', label: 'Seller / Exporter' },
+      { key: 'buyer', label: 'Buyer / Importer' },
+      { key: 'buyerAddress', label: 'Buyer Address' },
+      { key: 'currency', label: 'Currency' },
+      { key: 'totalAmount', label: 'Total Amount' },
+      { key: 'incoterms', label: 'Incoterms' },
+      { key: 'paymentTerms', label: 'Payment Terms' },
+      { key: 'goodsDescription', label: 'Description of Goods', type: 'textarea' },
+      { key: 'quantity', label: 'Quantity' },
+      { key: 'unitPrice', label: 'Unit Price' },
+      { key: 'countryOfOrigin', label: 'Country of Origin' },
+      { key: 'hsCode', label: 'HS Code' }
+    ]
+  },
+  packing_list: {
+    label: 'Packing List', short: 'Packing', icon: '\uD83D\uDCE6', color: '#d97706',
+    fields: [
+      { key: 'packingListNumber', label: 'Packing List Number' },
+      { key: 'date', label: 'Date', type: 'date' },
+      { key: 'shipper', label: 'Shipper' },
+      { key: 'consignee', label: 'Consignee' },
+      { key: 'invoiceReference', label: 'Invoice Reference' },
+      { key: 'totalPackages', label: 'Total Packages' },
+      { key: 'totalGrossWeight', label: 'Total Gross Weight (kg)' },
+      { key: 'totalNetWeight', label: 'Total Net Weight (kg)' },
+      { key: 'totalVolume', label: 'Total Volume (CBM)' },
+      { key: 'packageType', label: 'Package Type' },
+      { key: 'marksAndNumbers', label: 'Marks & Numbers' },
+      { key: 'goodsDescription', label: 'Description of Goods', type: 'textarea' }
+    ]
+  },
+  certificate_of_origin: {
+    label: 'Certificate of Origin', short: 'C/O', icon: '\uD83C\uDF0E', color: '#dc2626',
+    fields: [
+      { key: 'certificateNumber', label: 'Certificate Number' },
+      { key: 'exporter', label: 'Exporter' },
+      { key: 'consignee', label: 'Consignee' },
+      { key: 'countryOfOrigin', label: 'Country of Origin' },
+      { key: 'countryOfDestination', label: 'Country of Destination' },
+      { key: 'issuingAuthority', label: 'Issuing Authority' },
+      { key: 'dateOfIssue', label: 'Date of Issue', type: 'date' },
+      { key: 'invoiceReference', label: 'Invoice Reference' },
+      { key: 'hsCode', label: 'HS Code' },
+      { key: 'goodsDescription', label: 'Description of Goods', type: 'textarea' },
+      { key: 'grossWeight', label: 'Gross Weight' },
+      { key: 'numberOfPackages', label: 'Number of Packages' }
+    ]
+  },
+  insurance_certificate: {
+    label: 'Insurance Certificate', short: 'Insurance', icon: '\uD83D\uDEE1\uFE0F', color: '#0891b2',
+    fields: [
+      { key: 'policyNumber', label: 'Policy Number' },
+      { key: 'certificateNumber', label: 'Certificate Number' },
+      { key: 'insured', label: 'Insured Party' },
+      { key: 'insurer', label: 'Insurance Company' },
+      { key: 'insuredAmount', label: 'Insured Amount' },
+      { key: 'currency', label: 'Currency' },
+      { key: 'coverageType', label: 'Coverage Type' },
+      { key: 'voyageFrom', label: 'Voyage From' },
+      { key: 'voyageTo', label: 'Voyage To' },
+      { key: 'vesselName', label: 'Vessel Name' },
+      { key: 'goodsDescription', label: 'Description of Goods', type: 'textarea' },
+      { key: 'dateOfIssue', label: 'Date of Issue', type: 'date' },
+      { key: 'claimsPayableAt', label: 'Claims Payable At' }
+    ]
+  },
+  inspection_certificate: {
+    label: 'Inspection Certificate', short: 'Inspection', icon: '\uD83D\uDD0D', color: '#4f46e5',
+    fields: [
+      { key: 'certificateNumber', label: 'Certificate Number' },
+      { key: 'inspector', label: 'Inspection Company' },
+      { key: 'applicant', label: 'Applicant' },
+      { key: 'inspectionDate', label: 'Inspection Date', type: 'date' },
+      { key: 'inspectionPlace', label: 'Place of Inspection' },
+      { key: 'result', label: 'Result' },
+      { key: 'goodsDescription', label: 'Description of Goods', type: 'textarea' },
+      { key: 'quantity', label: 'Quantity' },
+      { key: 'findings', label: 'Findings', type: 'textarea' },
+      { key: 'dateOfIssue', label: 'Date of Issue', type: 'date' }
+    ]
+  },
+  bill_of_exchange: {
+    label: 'Draft / Bill of Exchange', short: 'Draft', icon: '\uD83D\uDCB0', color: '#b45309',
+    fields: [
+      { key: 'draftNumber', label: 'Draft Number' },
+      { key: 'drawer', label: 'Drawer' },
+      { key: 'drawee', label: 'Drawee' },
+      { key: 'payee', label: 'Payee' },
+      { key: 'amount', label: 'Amount' },
+      { key: 'currency', label: 'Currency' },
+      { key: 'dateOfIssue', label: 'Date of Issue', type: 'date' },
+      { key: 'maturityDate', label: 'Maturity Date', type: 'date' },
+      { key: 'tenor', label: 'Tenor' },
+      { key: 'placeOfPayment', label: 'Place of Payment' },
+      { key: 'lcReference', label: 'L/C Reference' }
+    ]
+  },
+  customs_declaration: {
+    label: 'Customs Declaration', short: 'Customs', icon: '\uD83D\uDEC2', color: '#166534',
+    fields: [
+      { key: 'declarationNumber', label: 'Declaration Number' },
+      { key: 'declarant', label: 'Declarant' },
+      { key: 'importer', label: 'Importer / Exporter' },
+      { key: 'customsOffice', label: 'Customs Office' },
+      { key: 'declarationType', label: 'Declaration Type' },
+      { key: 'countryOfOrigin', label: 'Country of Origin' },
+      { key: 'countryOfDestination', label: 'Country of Destination' },
+      { key: 'hsCode', label: 'HS Code' },
+      { key: 'goodsDescription', label: 'Description of Goods', type: 'textarea' },
+      { key: 'customsValue', label: 'Customs Value' },
+      { key: 'dutyAmount', label: 'Duty Amount' },
+      { key: 'dateOfDeclaration', label: 'Date of Declaration', type: 'date' },
+      { key: 'transportMode', label: 'Mode of Transport' }
+    ]
+  },
+  bank_guarantee: {
+    label: 'Bank Guarantee', short: 'Guarantee', icon: '\uD83C\uDFE6', color: '#9333ea',
+    fields: [
+      { key: 'guaranteeNumber', label: 'Guarantee Number' },
+      { key: 'issuingBank', label: 'Issuing Bank' },
+      { key: 'applicant', label: 'Applicant' },
+      { key: 'beneficiary', label: 'Beneficiary' },
+      { key: 'amount', label: 'Guarantee Amount' },
+      { key: 'currency', label: 'Currency' },
+      { key: 'dateOfIssue', label: 'Date of Issue', type: 'date' },
+      { key: 'expiryDate', label: 'Expiry Date', type: 'date' },
+      { key: 'guaranteeType', label: 'Type of Guarantee' },
+      { key: 'underlyingContract', label: 'Underlying Contract' },
+      { key: 'claimConditions', label: 'Claim Conditions', type: 'textarea' }
+    ]
+  },
+  promissory_note: {
+    label: 'Promissory Note', short: 'P/Note', icon: '\uD83D\uDCDD', color: '#be185d',
+    fields: [
+      { key: 'noteNumber', label: 'Note Number' },
+      { key: 'maker', label: 'Maker (Promisor)' },
+      { key: 'payee', label: 'Payee' },
+      { key: 'amount', label: 'Amount' },
+      { key: 'currency', label: 'Currency' },
+      { key: 'dateOfIssue', label: 'Date of Issue', type: 'date' },
+      { key: 'maturityDate', label: 'Maturity Date', type: 'date' },
+      { key: 'interestRate', label: 'Interest Rate' },
+      { key: 'placeOfPayment', label: 'Place of Payment' },
+      { key: 'placeOfIssue', label: 'Place of Issue' }
+    ]
+  },
+  warehouse_receipt: {
+    label: 'Warehouse Receipt', short: 'W/Receipt', icon: '\uD83C\uDFED', color: '#a16207',
+    fields: [
+      { key: 'receiptNumber', label: 'Receipt Number' },
+      { key: 'warehouseOperator', label: 'Warehouse Operator' },
+      { key: 'warehouseAddress', label: 'Warehouse Address' },
+      { key: 'depositor', label: 'Depositor' },
+      { key: 'dateReceived', label: 'Date Received', type: 'date' },
+      { key: 'goodsDescription', label: 'Description of Goods', type: 'textarea' },
+      { key: 'quantity', label: 'Quantity' },
+      { key: 'weight', label: 'Weight' },
+      { key: 'storageConditions', label: 'Storage Conditions' },
+      { key: 'lotNumber', label: 'Lot Number' },
+      { key: 'insuranceDetails', label: 'Insurance Details' }
+    ]
+  }
+};
+
+/* ---------- Mock Data Pools ---------- */
+const COMPANIES = [
+  'Shanghai Global Trading Co., Ltd.', 'Pacific Rim Exports Inc.',
+  'Rotterdam Port Services B.V.', 'Nippon Yusen Trading Corp.',
+  'Emirates Trading Agency LLC', 'Pan American Logistics S.A.',
+  'Singapore Maritime Holdings Pte Ltd', 'Tata International Ltd.',
+  'Brazilian Coffee Exporters S.A.', 'Deutsche Handel GmbH',
+  'Korean Steel Industries Co.', 'Mumbai Textiles Pvt Ltd',
+  'Canadian Grain Corp.', 'Jakarta Palm Oil Trading',
+  'London Metal Exchange Partners LLP'
+];
+
+const BANKS = [
+  'HSBC Holdings plc', 'Deutsche Bank AG', 'JPMorgan Chase & Co.',
+  'Citibank N.A.', 'Standard Chartered Bank', 'BNP Paribas S.A.',
+  'Bank of China', 'Sumitomo Mitsui Banking Corp.',
+  'Barclays Bank plc', 'UBS Group AG'
+];
+
+const PORTS = [
+  'Shanghai, China', 'Rotterdam, Netherlands', 'Singapore',
+  'Busan, South Korea', 'Hamburg, Germany', 'Los Angeles, USA',
+  'Hong Kong SAR', 'Jebel Ali, UAE', 'Felixstowe, UK',
+  'Yokohama, Japan', 'Santos, Brazil', 'Mumbai, India'
+];
+
+const VESSELS = [
+  'MSC Oscar', 'Ever Given', 'HMM Algeciras',
+  'CMA CGM Jacques Saade', 'OOCL Hong Kong',
+  'Cosco Shipping Universe', 'Madrid Maersk',
+  'MOL Triumph', 'Yang Ming Witness', 'Hapag Afif'
+];
+
+const GOODS_DESC = [
+  'Electronic Components (HS 8542.31)', 'Cotton Textiles (HS 5208.11)',
+  'Automotive Parts (HS 8708.29)', 'Pharmaceutical Products (HS 3004.90)',
+  'Steel Coils, Hot-Rolled (HS 7208.10)', 'Crude Palm Oil (HS 1511.10)',
+  'Natural Rubber Blocks (HS 4001.22)', 'Coffee Beans, Arabica (HS 0901.11)',
+  'Machinery Parts (HS 8431.39)', 'Frozen Seafood (HS 0303.89)',
+  'Copper Cathodes (HS 7403.11)', 'Polyester Fabric (HS 5407.61)'
+];
+
+const HS_CODES = [
+  '8542.31', '5208.11', '8708.29', '3004.90', '7208.10',
+  '1511.10', '4001.22', '0901.11', '8431.39', '0303.89'
+];
+
+const CURRENCIES = ['USD', 'EUR', 'GBP', 'JPY', 'CNY'];
+const INCOTERMS = ['FOB', 'CIF', 'CFR', 'EXW', 'DDP', 'FCA', 'DAP'];
+const COUNTRIES = ['China', 'USA', 'Germany', 'Japan', 'India', 'Brazil', 'UK', 'UAE', 'South Korea', 'Netherlands', 'Singapore', 'Indonesia'];
+const COVERAGE = ['All Risks', 'FPA (Free of Particular Average)', 'WA (With Average)', 'Institute Cargo Clauses A', 'Institute Cargo Clauses B'];
+const INSPECTORS = ['SGS S.A.', 'Bureau Veritas', 'Intertek Group', 'TUV Rheinland', 'COTECNA'];
+const GUARANTEE_TYPES = ['Performance Guarantee', 'Advance Payment Guarantee', 'Bid Bond', 'Payment Guarantee', 'Retention Money Guarantee'];
+const TRANSPORT_MODES = ['Sea', 'Air', 'Road', 'Rail', 'Multimodal'];
+const PACKAGE_TYPES = ['Cartons', 'Pallets', 'Crates', 'Drums', 'Bags', 'Containers'];
+
+const FILENAME_PATTERNS = {
+  bill_of_lading: [/b\/?l/i, /bill.?of.?lading/i, /lading/i, /shipping/i],
+  letter_of_credit: [/l\/?c/i, /letter.?of.?credit/i, /credit/i, /swift/i],
+  commercial_invoice: [/invoice/i, /inv[_-]/i, /commercial/i],
+  packing_list: [/packing/i, /pack.?list/i, /carton/i],
+  certificate_of_origin: [/origin/i, /coo[_-]/i, /certificate.?of.?origin/i],
+  insurance_certificate: [/insurance/i, /ins.?cert/i, /policy/i, /coverage/i],
+  inspection_certificate: [/inspect/i, /survey/i, /sgs/i, /bureau.?veritas/i],
+  bill_of_exchange: [/draft/i, /exchange/i, /b\/?e[_-]/i],
+  customs_declaration: [/customs/i, /declaration/i, /import.?entry/i, /clearance/i],
+  bank_guarantee: [/guarantee/i, /sblc/i, /standby/i],
+  promissory_note: [/promissory/i, /p\/?n[_-]/i],
+  warehouse_receipt: [/warehouse/i, /storage/i, /whr/i]
+};
+
+/* ============================================================
+   STATE
+   ============================================================ */
+let state = { documents: [], currentDocId: null };
+let processingDocId = null;
+
+function loadState() {
+  try {
+    const s = localStorage.getItem(STORAGE_KEY);
+    if (s) state = JSON.parse(s);
+  } catch(e) { /* use default */ }
+  if (!Array.isArray(state.documents)) state.documents = [];
+}
+
+function persist() {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+}
+
+/* ============================================================
+   UTILITIES
+   ============================================================ */
+function esc(s) { const d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
+
+function generateId() { return Date.now().toString(36) + Math.random().toString(36).slice(2, 7); }
+
+function formatSize(bytes) {
+  if (bytes < 1024) return bytes + ' B';
+  if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+  return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+}
+
+function pick(arr) { return arr[Math.floor(Math.random() * arr.length)]; }
+function pickTwo(arr) { const a = pick(arr); let b = pick(arr); while (b === a && arr.length > 1) b = pick(arr); return [a, b]; }
+
+function randInt(min, max) { return Math.floor(Math.random() * (max - min + 1)) + min; }
+
+function randomDate(daysBack) {
+  const d = new Date();
+  d.setDate(d.getDate() - randInt(1, daysBack || 90));
+  return d.toISOString().split('T')[0];
+}
+
+function futureDate(daysAhead, from) {
+  const d = from ? new Date(from) : new Date();
+  d.setDate(d.getDate() + randInt(14, daysAhead || 90));
+  return d.toISOString().split('T')[0];
+}
+
+function genConf() {
+  const r = Math.random();
+  if (r < 0.65) return +(0.85 + Math.random() * 0.14).toFixed(2);
+  if (r < 0.9) return +(0.65 + Math.random() * 0.19).toFixed(2);
+  return +(0.42 + Math.random() * 0.22).toFixed(2);
+}
+
+function confClass(c) { return c >= 0.85 ? 'high' : c >= 0.65 ? 'med' : 'low'; }
+function confColor(c) { return c >= 0.85 ? '#10b981' : c >= 0.65 ? '#f59e0b' : '#ef4444'; }
+
+function showToast(msg, type) {
+  const c = document.getElementById('toast-container');
+  const t = document.createElement('div');
+  t.className = 'toast toast-' + (type || 'info');
+  t.textContent = msg;
+  c.appendChild(t);
+  setTimeout(() => { t.style.opacity = '0'; setTimeout(() => t.remove(), 300); }, 3000);
+}
+
+function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+/* ============================================================
+   MOCK DATA GENERATORS
+   ============================================================ */
+function genRef(prefix, len) {
+  return prefix + '-' + Array.from({length: len || 7}, () => randInt(0,9)).join('');
+}
+
+function genContainerNums(n) {
+  const prefixes = ['MSKU','TCLU','HLXU','CMAU','OOLU'];
+  return Array.from({length: n}, () => pick(prefixes) + randInt(1000000,9999999)).join(', ');
+}
+
+function generateMockData(docType) {
+  const data = {};
+  const f = (key, val) => { data[key] = { value: val, confidence: genConf() }; };
+  const [co1, co2] = pickTwo(COMPANIES);
+  const [p1, p2] = pickTwo(PORTS);
+  const goods = pick(GOODS_DESC);
+  const cur = pick(CURRENCIES);
+  const dt = randomDate(60);
+
+  switch(docType) {
+    case 'bill_of_lading':
+      f('blNumber', genRef('MSKU', 9));
+      f('shipper', co1); f('consignee', co2);
+      f('notifyParty', pick(COMPANIES));
+      f('vesselName', pick(VESSELS));
+      f('voyageNumber', 'V.' + randInt(100,999) + pick(['E','W','N','S']));
+      f('portOfLoading', p1); f('portOfDischarge', p2);
+      f('placeOfDelivery', p2.split(',')[0] + ' Warehouse');
+      f('dateOfIssue', dt);
+      const nc = randInt(1,8);
+      f('numberOfContainers', String(nc));
+      f('containerNumbers', genContainerNums(Math.min(nc, 3)));
+      f('grossWeight', String(randInt(5000, 45000)));
+      f('goodsDescription', goods);
+      f('freightTerms', pick(['Prepaid', 'Collect']));
+      break;
+
+    case 'letter_of_credit':
+      f('lcNumber', genRef('LC', 10));
+      f('issuingBank', pick(BANKS)); f('advisingBank', pick(BANKS));
+      f('applicant', co1); f('beneficiary', co2);
+      const amt = randInt(50, 5000) * 1000;
+      f('amount', amt.toLocaleString()); f('currency', cur);
+      f('dateOfIssue', dt); f('expiryDate', futureDate(90, dt));
+      f('latestShipmentDate', futureDate(60, dt));
+      f('portOfLoading', p1); f('portOfDischarge', p2);
+      f('goodsDescription', goods);
+      f('incoterms', pick(INCOTERMS));
+      f('partialShipment', pick(['Allowed','Not Allowed']));
+      f('transhipment', pick(['Allowed','Not Allowed']));
+      break;
+
+    case 'commercial_invoice':
+      f('invoiceNumber', genRef('INV', 6));
+      f('invoiceDate', dt);
+      f('seller', co1); f('buyer', co2);
+      f('buyerAddress', randInt(1,500) + ' Trade Street, ' + pick(COUNTRIES));
+      f('currency', cur);
+      const qty = randInt(100, 10000);
+      const up = randInt(5, 500);
+      f('totalAmount', (qty * up).toLocaleString());
+      f('incoterms', pick(INCOTERMS));
+      f('paymentTerms', pick(['Net 30','Net 60','At Sight','90 Days After B/L Date','Deferred Payment']));
+      f('goodsDescription', goods);
+      f('quantity', String(qty));
+      f('unitPrice', up.toFixed(2));
+      f('countryOfOrigin', pick(COUNTRIES));
+      f('hsCode', pick(HS_CODES));
+      break;
+
+    case 'packing_list':
+      f('packingListNumber', genRef('PL', 6));
+      f('date', dt);
+      f('shipper', co1); f('consignee', co2);
+      f('invoiceReference', genRef('INV', 6));
+      const pkgs = randInt(10, 500);
+      f('totalPackages', String(pkgs));
+      const gw = randInt(5000, 40000);
+      f('totalGrossWeight', String(gw));
+      f('totalNetWeight', String(Math.round(gw * 0.9)));
+      f('totalVolume', (randInt(10, 200)).toFixed(1));
+      f('packageType', pick(PACKAGE_TYPES));
+      f('marksAndNumbers', co1.split(' ')[0].toUpperCase() + '/' + genRef('', 4));
+      f('goodsDescription', goods);
+      break;
+
+    case 'certificate_of_origin':
+      f('certificateNumber', genRef('CO', 8));
+      f('exporter', co1); f('consignee', co2);
+      const [orig, dest] = pickTwo(COUNTRIES);
+      f('countryOfOrigin', orig); f('countryOfDestination', dest);
+      f('issuingAuthority', pick(['Chamber of Commerce','Trade Ministry','Customs Authority']) + ' of ' + orig);
+      f('dateOfIssue', dt);
+      f('invoiceReference', genRef('INV', 6));
+      f('hsCode', pick(HS_CODES));
+      f('goodsDescription', goods);
+      f('grossWeight', randInt(1000, 30000) + ' kg');
+      f('numberOfPackages', String(randInt(10, 300)));
+      break;
+
+    case 'insurance_certificate':
+      f('policyNumber', genRef('POL', 8));
+      f('certificateNumber', genRef('IC', 7));
+      f('insured', co1);
+      f('insurer', pick(['Lloyd\'s of London','Allianz SE','AIG','Zurich Insurance','Tokio Marine']));
+      const insAmt = randInt(100, 3000) * 1000;
+      f('insuredAmount', insAmt.toLocaleString()); f('currency', cur);
+      f('coverageType', pick(COVERAGE));
+      f('voyageFrom', p1); f('voyageTo', p2);
+      f('vesselName', pick(VESSELS));
+      f('goodsDescription', goods);
+      f('dateOfIssue', dt);
+      f('claimsPayableAt', pick(PORTS).split(',')[0]);
+      break;
+
+    case 'inspection_certificate':
+      f('certificateNumber', genRef('INSP', 7));
+      f('inspector', pick(INSPECTORS));
+      f('applicant', co1);
+      f('inspectionDate', dt);
+      f('inspectionPlace', pick(PORTS));
+      f('result', pick(['Passed - Conforming','Passed with Minor Observations','Conditionally Passed']));
+      f('goodsDescription', goods);
+      f('quantity', randInt(100, 5000) + ' units');
+      f('findings', pick([
+        'Goods conform to contract specifications. Quality meets standards.',
+        'Minor surface scratches on 2% of units. Within acceptable tolerance.',
+        'Weight variance of +0.3% from declared. All other parameters conform.'
+      ]));
+      f('dateOfIssue', dt);
+      break;
+
+    case 'bill_of_exchange':
+      f('draftNumber', genRef('DFT', 6));
+      f('drawer', co1); f('drawee', pick(BANKS));
+      f('payee', co2);
+      const dAmt = randInt(50, 2000) * 1000;
+      f('amount', dAmt.toLocaleString()); f('currency', cur);
+      f('dateOfIssue', dt);
+      const tenor = pick(['At Sight','30 Days','60 Days','90 Days','120 Days']);
+      f('maturityDate', tenor === 'At Sight' ? dt : futureDate(120, dt));
+      f('tenor', tenor);
+      f('placeOfPayment', pick(PORTS).split(',')[0]);
+      f('lcReference', genRef('LC', 10));
+      break;
+
+    case 'customs_declaration':
+      f('declarationNumber', genRef('CD', 10));
+      f('declarant', pick(COMPANIES));
+      f('importer', co2);
+      f('customsOffice', pick(PORTS).split(',')[0] + ' Customs');
+      f('declarationType', pick(['Import Declaration','Export Declaration','Transit Declaration']));
+      const [cOrig, cDest] = pickTwo(COUNTRIES);
+      f('countryOfOrigin', cOrig); f('countryOfDestination', cDest);
+      f('hsCode', pick(HS_CODES));
+      f('goodsDescription', goods);
+      const cv = randInt(50, 2000) * 1000;
+      f('customsValue', cur + ' ' + cv.toLocaleString());
+      f('dutyAmount', cur + ' ' + Math.round(cv * randInt(3, 25) / 100).toLocaleString());
+      f('dateOfDeclaration', dt);
+      f('transportMode', pick(TRANSPORT_MODES));
+      break;
+
+    case 'bank_guarantee':
+      f('guaranteeNumber', genRef('BG', 8));
+      f('issuingBank', pick(BANKS));
+      f('applicant', co1); f('beneficiary', co2);
+      const gAmt = randInt(100, 5000) * 1000;
+      f('amount', gAmt.toLocaleString()); f('currency', cur);
+      f('dateOfIssue', dt); f('expiryDate', futureDate(180, dt));
+      f('guaranteeType', pick(GUARANTEE_TYPES));
+      f('underlyingContract', genRef('CTR', 6));
+      f('claimConditions', 'Written demand stating that the Applicant has failed to fulfill contractual obligations under contract ' + genRef('CTR', 6));
+      break;
+
+    case 'promissory_note':
+      f('noteNumber', genRef('PN', 7));
+      f('maker', co1); f('payee', co2);
+      const pAmt = randInt(25, 3000) * 1000;
+      f('amount', pAmt.toLocaleString()); f('currency', cur);
+      f('dateOfIssue', dt);
+      f('maturityDate', futureDate(180, dt));
+      f('interestRate', randInt(2, 12) + '% per annum');
+      f('placeOfPayment', pick(PORTS).split(',')[0]);
+      f('placeOfIssue', pick(PORTS).split(',')[0]);
+      break;
+
+    case 'warehouse_receipt':
+      f('receiptNumber', genRef('WR', 7));
+      f('warehouseOperator', pick(['Global Warehousing Ltd.','Pacific Storage Corp.','Continental Logistics Inc.','Maritime Warehouse Services']));
+      f('warehouseAddress', randInt(1,999) + ' Industrial Zone, ' + pick(PORTS));
+      f('depositor', co1);
+      f('dateReceived', dt);
+      f('goodsDescription', goods);
+      f('quantity', randInt(100, 5000) + ' ' + pick(['bags','cartons','pallets','drums']));
+      f('weight', randInt(5000, 50000) + ' kg');
+      f('storageConditions', pick(['Ambient','Temperature Controlled (2-8°C)','Humidity Controlled','Frozen (-18°C)']));
+      f('lotNumber', genRef('LOT', 5));
+      f('insuranceDetails', pick(BANKS).split(' ')[0] + ' Policy ' + genRef('POL', 6));
+      break;
+  }
+  return data;
+}
+
+/* ============================================================
+   CLASSIFICATION ENGINE
+   ============================================================ */
+function classifyByFilename(name) {
+  for (const [type, patterns] of Object.entries(FILENAME_PATTERNS)) {
+    for (const pat of patterns) {
+      if (pat.test(name)) return type;
+    }
+  }
+  return null;
+}
+
+function getAlternatives(primary) {
+  const related = {
+    bill_of_lading: ['packing_list','commercial_invoice','customs_declaration'],
+    letter_of_credit: ['bank_guarantee','bill_of_exchange','commercial_invoice'],
+    commercial_invoice: ['packing_list','bill_of_lading','certificate_of_origin'],
+    packing_list: ['commercial_invoice','bill_of_lading','warehouse_receipt'],
+    certificate_of_origin: ['commercial_invoice','customs_declaration','inspection_certificate'],
+    insurance_certificate: ['bill_of_lading','letter_of_credit','certificate_of_origin'],
+    inspection_certificate: ['certificate_of_origin','packing_list','commercial_invoice'],
+    bill_of_exchange: ['letter_of_credit','promissory_note','bank_guarantee'],
+    customs_declaration: ['certificate_of_origin','commercial_invoice','bill_of_lading'],
+    bank_guarantee: ['letter_of_credit','promissory_note','bill_of_exchange'],
+    promissory_note: ['bill_of_exchange','bank_guarantee','letter_of_credit'],
+    warehouse_receipt: ['packing_list','bill_of_lading','inspection_certificate']
+  };
+  return (related[primary] || Object.keys(DOC_TYPES).filter(t => t !== primary).slice(0, 3));
+}
+
+function simulateClassification(fileName) {
+  const matched = classifyByFilename(fileName);
+  let primary, primaryConf;
+
+  if (matched) {
+    primary = matched;
+    primaryConf = +(0.87 + Math.random() * 0.12).toFixed(2);
+  } else {
+    const types = Object.keys(DOC_TYPES);
+    primary = types[Math.floor(Math.random() * types.length)];
+    primaryConf = +(0.62 + Math.random() * 0.23).toFixed(2);
+  }
+
+  const alts = getAlternatives(primary);
+  let remaining = 1 - primaryConf;
+  const alternatives = alts.slice(0, 2).map((type, i) => {
+    const share = i === 0 ? remaining * (0.5 + Math.random() * 0.3) : remaining;
+    remaining -= share;
+    return { type, confidence: +Math.max(0.01, share).toFixed(2) };
+  });
+
+  return {
+    primaryType: primary,
+    primaryConfidence: primaryConf,
+    alternatives,
+    wasOverridden: false,
+    originalType: null
+  };
+}
+
+/* ============================================================
+   TAB NAVIGATION
+   ============================================================ */
+function switchTab(name) {
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+
+  const tabMap = { upload: 0, dashboard: 1, detail: 2 };
+  document.querySelectorAll('.tab-btn')[tabMap[name]].classList.add('active');
+  document.getElementById('tab-' + name).classList.add('active');
+
+  if (name === 'dashboard') renderDashboard();
+  if (name === 'detail' && state.currentDocId) renderDetail(state.currentDocId);
+}
+
+/* ============================================================
+   FILE UPLOAD
+   ============================================================ */
+const dropZone = document.getElementById('drop-zone');
+const fileInput = document.getElementById('file-input');
+
+dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('drag-over'); });
+dropZone.addEventListener('dragleave', e => { e.preventDefault(); dropZone.classList.remove('drag-over'); });
+dropZone.addEventListener('drop', e => {
+  e.preventDefault(); dropZone.classList.remove('drag-over');
+  processFiles(e.dataTransfer.files);
+});
+fileInput.addEventListener('change', e => { processFiles(e.target.files); e.target.value = ''; });
+
+function processFiles(fileList) {
+  const valid = /\.(pdf|jpe?g|png|tiff?|docx?)$/i;
+  Array.from(fileList).forEach(file => {
+    if (!valid.test(file.name)) { showToast('Unsupported: ' + file.name, 'error'); return; }
+    if (file.size > 10 * 1024 * 1024) { showToast('Too large: ' + file.name, 'error'); return; }
+
+    const doc = {
+      id: generateId(),
+      fileName: file.name,
+      fileSize: file.size,
+      fileType: file.type || 'application/octet-stream',
+      fileDataUrl: null,
+      uploadDate: new Date().toISOString(),
+      status: 'processing',
+      classification: null,
+      extractedData: {},
+      editedFields: []
+    };
+    state.documents.unshift(doc);
+    persist();
+
+    // Read thumbnail for images
+    if (file.type && file.type.startsWith('image/')) {
+      const reader = new FileReader();
+      reader.onload = ev => {
+        const img = new Image();
+        img.onload = () => {
+          const canvas = document.createElement('canvas');
+          const scale = Math.min(200 / img.width, 200 / img.height, 1);
+          canvas.width = img.width * scale;
+          canvas.height = img.height * scale;
+          canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
+          doc.fileDataUrl = canvas.toDataURL('image/jpeg', 0.7);
+          persist();
+          renderUploadQueue();
+        };
+        img.src = ev.target.result;
+      };
+      reader.readAsDataURL(file);
+    }
+
+    renderUploadQueue();
+    processDocument(doc.id);
+  });
+}
+
+/* ============================================================
+   PROCESSING PIPELINE
+   ============================================================ */
+async function processDocument(docId) {
+  const doc = state.documents.find(d => d.id === docId);
+  if (!doc) return;
+  processingDocId = docId;
+
+  showOverlay([
+    { text: 'Reading document...', status: 'active' },
+    { text: 'Classifying document type...', status: 'pending' },
+    { text: 'Extracting data fields...', status: 'pending' }
+  ]);
+
+  // Step 1: Reading
+  await sleep(600 + Math.random() * 400);
+  updateOverlayStep(0, 'completed');
+  updateOverlayStep(1, 'active');
+
+  // Step 2: Classification
+  await sleep(1000 + Math.random() * 1000);
+  doc.classification = simulateClassification(doc.fileName);
+  doc.status = 'classified';
+  persist();
+  updateOverlayStep(1, 'completed');
+  updateOverlayStep(2, 'active');
+
+  // Step 3: Extraction
+  await sleep(800 + Math.random() * 1000);
+  doc.extractedData = generateMockData(doc.classification.primaryType);
+  persist();
+  updateOverlayStep(2, 'completed');
+
+  await sleep(300);
+  hideOverlay();
+
+  renderUploadQueue();
+  renderClassification(doc);
+  renderExtraction(doc);
+
+  showToast('Document classified as: ' + DOC_TYPES[doc.classification.primaryType].label, 'success');
+}
+
+/* ============================================================
+   OVERLAY
+   ============================================================ */
+function showOverlay(steps) {
+  const el = document.getElementById('processing-overlay');
+  const stepsEl = document.getElementById('processing-steps');
+  stepsEl.innerHTML = steps.map((s, i) => `
+    <div class="step ${s.status}" id="step-${i}">
+      <div class="step-icon">${s.status === 'completed' ? '&#10003;' : s.status === 'active' ? '<span class="spinner">&#9696;</span>' : '&#9711;'}</div>
+      <div class="step-text">${esc(s.text)}</div>
+    </div>
+  `).join('');
+  el.classList.remove('hidden');
+}
+
+function updateOverlayStep(idx, status) {
+  const step = document.getElementById('step-' + idx);
+  if (!step) return;
+  step.className = 'step ' + status;
+  const icon = step.querySelector('.step-icon');
+  icon.innerHTML = status === 'completed' ? '&#10003;' : status === 'active' ? '<span class="spinner">&#9696;</span>' : '&#9711;';
+}
+
+function hideOverlay() {
+  document.getElementById('processing-overlay').classList.add('hidden');
+}
+
+/* ============================================================
+   UPLOAD QUEUE RENDERING
+   ============================================================ */
+function renderUploadQueue() {
+  const recent = state.documents.slice(0, 5);
+  const card = document.getElementById('queue-card');
+  if (recent.length === 0) { card.style.display = 'none'; return; }
+  card.style.display = '';
+
+  document.getElementById('queue-list').innerHTML = recent.map(doc => {
+    const icon = doc.fileDataUrl
+      ? `<img src="${doc.fileDataUrl}" alt="">`
+      : `<span>${doc.fileType.includes('pdf') ? '&#128196;' : '&#128462;'}</span>`;
+
+    const statusBadge = doc.status === 'processing'
+      ? '<span class="badge badge-processing">Processing...</span>'
+      : `<span class="badge badge-classified">${esc(DOC_TYPES[doc.classification?.primaryType]?.short || 'Classified')}</span>`;
+
+    return `
+      <div class="queue-item">
+        <div class="queue-icon">${icon}</div>
+        <div class="queue-info">
+          <div class="name">${esc(doc.fileName)}</div>
+          <div class="meta">${formatSize(doc.fileSize)} &bull; ${new Date(doc.uploadDate).toLocaleDateString()}</div>
+        </div>
+        ${statusBadge}
+      </div>
+    `;
+  }).join('');
+}
+
+/* ============================================================
+   CLASSIFICATION UI
+   ============================================================ */
+function renderClassification(doc) {
+  const card = document.getElementById('classification-card');
+  card.style.display = '';
+  const cls = doc.classification;
+  const dt = DOC_TYPES[cls.primaryType];
+
+  let html = `
+    <div class="class-result">
+      <div class="class-icon">${dt.icon}</div>
+      <div>
+        <div class="class-type">${esc(dt.label)}</div>
+        <div class="class-conf">Confidence: ${(cls.primaryConfidence * 100).toFixed(0)}%</div>
+      </div>
+    </div>
+    <h3 style="font-size:0.95rem; margin-bottom:12px; color:#475569;">Classification Candidates</h3>
+  `;
+
+  // Primary
+  html += confBar(dt.label, cls.primaryConfidence);
+
+  // Alternatives
+  cls.alternatives.forEach(alt => {
+    const altDt = DOC_TYPES[alt.type];
+    if (altDt) html += confBar(altDt.label, alt.confidence);
+  });
+
+  // Override
+  html += `
+    <div class="override-row">
+      <select id="override-select">
+        <option value="">-- Override Classification --</option>
+        ${Object.entries(DOC_TYPES).map(([k, v]) => `<option value="${k}" ${k === cls.primaryType ? 'selected' : ''}>${esc(v.label)}</option>`).join('')}
+      </select>
+      <button class="btn btn-secondary btn-sm" onclick="overrideClassification('${doc.id}')">Override</button>
+    </div>
+  `;
+
+  document.getElementById('classification-result').innerHTML = html;
+}
+
+function confBar(label, conf) {
+  const pct = (conf * 100).toFixed(0);
+  const cls = confClass(conf);
+  return `
+    <div class="conf-row">
+      <div class="conf-label">${esc(label)}</div>
+      <div class="conf-track"><div class="conf-fill conf-${cls}" style="width:${pct}%"></div></div>
+      <div class="conf-value">${pct}%</div>
+    </div>
+  `;
+}
+
+function overrideClassification(docId) {
+  const sel = document.getElementById('override-select');
+  const newType = sel.value;
+  if (!newType) return;
+
+  const doc = state.documents.find(d => d.id === docId);
+  if (!doc) return;
+
+  if (newType !== doc.classification.primaryType) {
+    doc.classification.wasOverridden = true;
+    doc.classification.originalType = doc.classification.primaryType;
+    doc.classification.primaryType = newType;
+    doc.classification.primaryConfidence = 1.0;
+    doc.classification.alternatives = [];
+    doc.extractedData = generateMockData(newType);
+    persist();
+    renderClassification(doc);
+    renderExtraction(doc);
+    showToast('Classification overridden to: ' + DOC_TYPES[newType].label, 'info');
+  }
+}
+
+/* ============================================================
+   EXTRACTION UI
+   ============================================================ */
+function renderExtraction(doc) {
+  const card = document.getElementById('extraction-card');
+  card.style.display = '';
+  const dt = DOC_TYPES[doc.classification.primaryType];
+
+  let html = `<div class="extraction-grid">`;
+  dt.fields.forEach(field => {
+    const ext = doc.extractedData[field.key];
+    const val = ext ? ext.value : '';
+    const conf = ext ? ext.confidence : 0;
+    const cls = confClass(conf);
+    const isTextarea = field.type === 'textarea';
+    const isLow = conf > 0 && conf < 0.65;
+
+    html += `
+      <div class="field-group ${isTextarea ? 'full-width' : ''} ${isLow ? 'low-conf' : ''}">
+        <label>
+          ${esc(field.label)}
+          ${conf > 0 ? `<span class="conf-dot ${cls}" title="${(conf * 100).toFixed(0)}% confidence"></span>` : ''}
+        </label>
+        ${isTextarea
+          ? `<textarea data-doc="${doc.id}" data-field="${field.key}" onchange="editField(this)">${esc(val)}</textarea>`
+          : `<input type="${field.type === 'date' ? 'date' : 'text'}" value="${esc(val)}" data-doc="${doc.id}" data-field="${field.key}" onchange="editField(this)">`
+        }
+      </div>
+    `;
+  });
+  html += `</div>`;
+
+  html += `
+    <div class="btn-group">
+      <button class="btn btn-primary" onclick="saveDocument('${doc.id}')">Save Document</button>
+      <button class="btn btn-secondary" onclick="reclassify('${doc.id}')">Re-classify</button>
+    </div>
+  `;
+
+  document.getElementById('extraction-result').innerHTML = html;
+}
+
+function editField(el) {
+  const docId = el.dataset.doc;
+  const field = el.dataset.field;
+  const doc = state.documents.find(d => d.id === docId);
+  if (!doc || !doc.extractedData[field]) return;
+  doc.extractedData[field].value = el.value;
+  doc.extractedData[field].confidence = 1.0;
+  if (!doc.editedFields.includes(field)) doc.editedFields.push(field);
+  persist();
+}
+
+function saveDocument(docId) {
+  const doc = state.documents.find(d => d.id === docId);
+  if (!doc) return;
+  doc.status = 'reviewed';
+  persist();
+  showToast('Document saved successfully', 'success');
+  switchTab('dashboard');
+}
+
+async function reclassify(docId) {
+  const doc = state.documents.find(d => d.id === docId);
+  if (!doc) return;
+  doc.status = 'processing';
+  persist();
+
+  showOverlay([
+    { text: 'Re-reading document...', status: 'active' },
+    { text: 'Re-classifying document...', status: 'pending' },
+    { text: 'Extracting data fields...', status: 'pending' }
+  ]);
+
+  await sleep(500);
+  updateOverlayStep(0, 'completed');
+  updateOverlayStep(1, 'active');
+  await sleep(1200);
+  doc.classification = simulateClassification(doc.fileName);
+  doc.status = 'classified';
+  updateOverlayStep(1, 'completed');
+  updateOverlayStep(2, 'active');
+  await sleep(800);
+  doc.extractedData = generateMockData(doc.classification.primaryType);
+  persist();
+  updateOverlayStep(2, 'completed');
+  await sleep(300);
+  hideOverlay();
+
+  renderClassification(doc);
+  renderExtraction(doc);
+  showToast('Re-classified as: ' + DOC_TYPES[doc.classification.primaryType].label, 'info');
+}
+
+/* ============================================================
+   DASHBOARD
+   ============================================================ */
+function renderDashboard() {
+  renderDashboardStats();
+  renderDashboardTable();
+}
+
+function renderDashboardStats() {
+  const docs = state.documents;
+  const classified = docs.filter(d => d.status === 'classified').length;
+  const reviewed = docs.filter(d => d.status === 'reviewed').length;
+  const types = new Set(docs.filter(d => d.classification).map(d => d.classification.primaryType)).size;
+
+  document.getElementById('dash-stats').innerHTML = `
+    <div class="stat-box"><div class="stat-num">${docs.length}</div><div class="stat-label">Total Documents</div></div>
+    <div class="stat-box"><div class="stat-num">${classified}</div><div class="stat-label">Classified</div></div>
+    <div class="stat-box"><div class="stat-num">${reviewed}</div><div class="stat-label">Reviewed</div></div>
+    <div class="stat-box"><div class="stat-num">${types}</div><div class="stat-label">Document Types</div></div>
+  `;
+}
+
+function getFilteredDocs() {
+  let docs = state.documents;
+  const search = (document.getElementById('dash-search').value || '').toLowerCase();
+  const typeF = document.getElementById('dash-type-filter').value;
+  const statusF = document.getElementById('dash-status-filter').value;
+
+  if (search) docs = docs.filter(d =>
+    d.fileName.toLowerCase().includes(search) ||
+    (d.classification && DOC_TYPES[d.classification.primaryType]?.label.toLowerCase().includes(search))
+  );
+  if (typeF) docs = docs.filter(d => d.classification?.primaryType === typeF);
+  if (statusF) docs = docs.filter(d => d.status === statusF);
+  return docs;
+}
+
+function renderDashboardTable() {
+  const docs = getFilteredDocs();
+  if (docs.length === 0) {
+    document.getElementById('dash-table').innerHTML = `
+      <div class="empty-state">
+        <div class="empty-icon">&#128196;</div>
+        <p>No documents yet. Upload trade documents to get started.</p>
+      </div>
+    `;
+    return;
+  }
+
+  let html = `<table>
+    <thead><tr>
+      <th>Filename</th><th>Document Type</th><th>Status</th><th>Confidence</th><th>Date</th><th>Actions</th>
+    </tr></thead><tbody>`;
+
+  docs.forEach(doc => {
+    const dt = doc.classification ? DOC_TYPES[doc.classification.primaryType] : null;
+    const typeBadge = dt
+      ? `<span class="type-badge" style="background:${dt.color}">${dt.icon} ${esc(dt.short)}</span>`
+      : '<span class="badge badge-processing">Pending</span>';
+    const statusBadge = `<span class="badge badge-${doc.status}">${doc.status.charAt(0).toUpperCase() + doc.status.slice(1)}</span>`;
+    const conf = doc.classification ? (doc.classification.primaryConfidence * 100).toFixed(0) + '%' : '-';
+    const date = new Date(doc.uploadDate).toLocaleDateString();
+
+    html += `<tr>
+      <td>${esc(doc.fileName)}</td>
+      <td>${typeBadge}</td>
+      <td>${statusBadge}</td>
+      <td>${conf}</td>
+      <td>${date}</td>
+      <td class="actions">
+        <button class="btn btn-secondary btn-sm" onclick="viewDocument('${doc.id}')">View</button>
+        <button class="btn btn-danger btn-sm" onclick="deleteDocument('${doc.id}')">Delete</button>
+      </td>
+    </tr>`;
+  });
+
+  html += `</tbody></table>`;
+  document.getElementById('dash-table').innerHTML = html;
+}
+
+function viewDocument(docId) {
+  state.currentDocId = docId;
+  persist();
+  document.getElementById('detail-tab-btn').style.display = '';
+  switchTab('detail');
+}
+
+function deleteDocument(docId) {
+  state.documents = state.documents.filter(d => d.id !== docId);
+  persist();
+  renderDashboard();
+  showToast('Document deleted', 'info');
+}
+
+/* ============================================================
+   DETAIL VIEW
+   ============================================================ */
+function renderDetail(docId) {
+  const doc = state.documents.find(d => d.id === docId);
+  if (!doc) {
+    document.getElementById('detail-content').innerHTML = '<p>Document not found.</p>';
+    return;
+  }
+
+  const cls = doc.classification;
+  const dt = cls ? DOC_TYPES[cls.primaryType] : null;
+
+  let html = `
+    <div class="card">
+      <div style="display:flex; align-items:center; gap:16px; flex-wrap:wrap;">
+        <div style="font-size:2.5rem;">${dt ? dt.icon : '&#128196;'}</div>
+        <div style="flex:1;">
+          <h2 style="margin-bottom:4px;">${esc(doc.fileName)}</h2>
+          <p style="color:#6b7280; font-size:0.85rem;">
+            ${formatSize(doc.fileSize)} &bull; Uploaded ${new Date(doc.uploadDate).toLocaleDateString()}
+            &bull; <span class="badge badge-${doc.status}">${doc.status.charAt(0).toUpperCase() + doc.status.slice(1)}</span>
+          </p>
+        </div>
+        ${dt ? `<span class="type-badge" style="background:${dt.color}; font-size:0.9rem; padding:6px 16px;">${dt.icon} ${esc(dt.label)}</span>` : ''}
+      </div>
+    </div>
+  `;
+
+  // Classification
+  if (cls) {
+    html += `<div class="card"><h2>Classification</h2>`;
+    if (cls.wasOverridden) {
+      html += `<p style="color:#f59e0b; font-size:0.85rem; margin-bottom:12px;">Manually overridden from: ${esc(DOC_TYPES[cls.originalType]?.label || cls.originalType)}</p>`;
+    }
+    html += confBar(dt.label, cls.primaryConfidence);
+    cls.alternatives.forEach(alt => {
+      const altDt = DOC_TYPES[alt.type];
+      if (altDt) html += confBar(altDt.label, alt.confidence);
+    });
+
+    html += `
+      <div class="override-row">
+        <select id="detail-override-select">
+          <option value="">-- Override Classification --</option>
+          ${Object.entries(DOC_TYPES).map(([k, v]) => `<option value="${k}" ${k === cls.primaryType ? 'selected' : ''}>${esc(v.label)}</option>`).join('')}
+        </select>
+        <button class="btn btn-secondary btn-sm" onclick="detailOverride('${doc.id}')">Override</button>
+      </div>
+    </div>`;
+  }
+
+  // Extracted Data
+  if (dt && doc.extractedData) {
+    html += `<div class="card"><h2>Extracted Data</h2><div class="extraction-grid">`;
+    dt.fields.forEach(field => {
+      const ext = doc.extractedData[field.key];
+      const val = ext ? ext.value : '';
+      const conf = ext ? ext.confidence : 0;
+      const cls2 = confClass(conf);
+      const isTextarea = field.type === 'textarea';
+      const isLow = conf > 0 && conf < 0.65;
+
+      html += `
+        <div class="field-group ${isTextarea ? 'full-width' : ''} ${isLow ? 'low-conf' : ''}">
+          <label>
+            ${esc(field.label)}
+            ${conf > 0 ? `<span class="conf-dot ${cls2}" title="${(conf * 100).toFixed(0)}% confidence"></span>` : ''}
+          </label>
+          ${isTextarea
+            ? `<textarea data-doc="${doc.id}" data-field="${field.key}" onchange="editField(this)">${esc(val)}</textarea>`
+            : `<input type="${field.type === 'date' ? 'date' : 'text'}" value="${esc(val)}" data-doc="${doc.id}" data-field="${field.key}" onchange="editField(this)">`
+          }
+        </div>
+      `;
+    });
+    html += `</div>`;
+
+    html += `
+      <div class="btn-group">
+        <button class="btn btn-primary" onclick="saveFromDetail('${doc.id}')">Save Changes</button>
+        <button class="btn btn-secondary" onclick="exportSingleJSON('${doc.id}')">Export JSON</button>
+        <button class="btn btn-secondary" onclick="exportSingleCSV('${doc.id}')">Export CSV</button>
+      </div>
+    </div>`;
+  }
+
+  document.getElementById('detail-content').innerHTML = html;
+}
+
+function detailOverride(docId) {
+  const sel = document.getElementById('detail-override-select');
+  const newType = sel.value;
+  if (!newType) return;
+  const doc = state.documents.find(d => d.id === docId);
+  if (!doc || newType === doc.classification.primaryType) return;
+
+  doc.classification.wasOverridden = true;
+  doc.classification.originalType = doc.classification.primaryType;
+  doc.classification.primaryType = newType;
+  doc.classification.primaryConfidence = 1.0;
+  doc.classification.alternatives = [];
+  doc.extractedData = generateMockData(newType);
+  persist();
+  renderDetail(docId);
+  showToast('Classification overridden to: ' + DOC_TYPES[newType].label, 'info');
+}
+
+function saveFromDetail(docId) {
+  const doc = state.documents.find(d => d.id === docId);
+  if (!doc) return;
+  doc.status = 'reviewed';
+  persist();
+  renderDetail(docId);
+  showToast('Changes saved', 'success');
+}
+
+/* ============================================================
+   EXPORT
+   ============================================================ */
+function downloadFile(content, filename, mime) {
+  const blob = new Blob([content], { type: mime });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = filename;
+  document.body.appendChild(a); a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+function docToExport(doc) {
+  return {
+    id: doc.id,
+    fileName: doc.fileName,
+    documentType: DOC_TYPES[doc.classification?.primaryType]?.label || 'Unknown',
+    confidence: doc.classification?.primaryConfidence || 0,
+    uploadDate: doc.uploadDate,
+    status: doc.status,
+    extractedData: Object.fromEntries(
+      Object.entries(doc.extractedData || {}).map(([k, v]) => [k, v.value])
+    )
+  };
+}
+
+function exportAllJSON() {
+  const docs = getFilteredDocs().filter(d => d.classification);
+  if (!docs.length) { showToast('No documents to export', 'error'); return; }
+  const data = docs.map(docToExport);
+  downloadFile(JSON.stringify(data, null, 2), 'trade-docs-export.json', 'application/json');
+  docs.forEach(d => { d.status = 'exported'; });
+  persist();
+  renderDashboard();
+  showToast('Exported ' + docs.length + ' documents as JSON', 'success');
+}
+
+function exportAllCSV() {
+  const docs = getFilteredDocs().filter(d => d.classification);
+  if (!docs.length) { showToast('No documents to export', 'error'); return; }
+
+  const allFields = new Set();
+  docs.forEach(d => Object.keys(d.extractedData || {}).forEach(k => allFields.add(k)));
+  const fields = [...allFields];
+
+  const headers = ['ID','Filename','Document Type','Confidence','Upload Date','Status', ...fields];
+  const rows = docs.map(d => [
+    d.id, d.fileName,
+    DOC_TYPES[d.classification?.primaryType]?.label || '',
+    d.classification?.primaryConfidence || '',
+    d.uploadDate, d.status,
+    ...fields.map(f => d.extractedData?.[f]?.value || '')
+  ]);
+
+  const csv = [headers, ...rows].map(r =>
+    r.map(c => '"' + String(c).replace(/"/g, '""') + '"').join(',')
+  ).join('\n');
+
+  downloadFile(csv, 'trade-docs-export.csv', 'text/csv');
+  docs.forEach(d => { d.status = 'exported'; });
+  persist();
+  renderDashboard();
+  showToast('Exported ' + docs.length + ' documents as CSV', 'success');
+}
+
+function exportSingleJSON(docId) {
+  const doc = state.documents.find(d => d.id === docId);
+  if (!doc) return;
+  downloadFile(JSON.stringify(docToExport(doc), null, 2), doc.fileName.replace(/\.[^.]+$/, '') + '-extracted.json', 'application/json');
+  showToast('Exported as JSON', 'success');
+}
+
+function exportSingleCSV(docId) {
+  const doc = state.documents.find(d => d.id === docId);
+  if (!doc || !doc.extractedData) return;
+  const entries = Object.entries(doc.extractedData);
+  const csv = 'Field,Value,Confidence\n' + entries.map(([k, v]) =>
+    '"' + k + '","' + String(v.value).replace(/"/g, '""') + '","' + (v.confidence * 100).toFixed(0) + '%"'
+  ).join('\n');
+  downloadFile(csv, doc.fileName.replace(/\.[^.]+$/, '') + '-extracted.csv', 'text/csv');
+  showToast('Exported as CSV', 'success');
+}
+
+/* ============================================================
+   INIT
+   ============================================================ */
+function init() {
+  loadState();
+
+  // Populate type filter
+  const typeFilter = document.getElementById('dash-type-filter');
+  Object.entries(DOC_TYPES).forEach(([k, v]) => {
+    const opt = document.createElement('option');
+    opt.value = k; opt.textContent = v.label;
+    typeFilter.appendChild(opt);
+  });
+
+  renderUploadQueue();
+
+  // Show detail tab if there's a current doc
+  if (state.currentDocId) {
+    document.getElementById('detail-tab-btn').style.display = '';
+  }
+}
+
+init();
+</script>
+</body>
+</html>
