@@ -28,6 +28,7 @@ tailwind.config = {
   ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 3px; }
   .fade-in { animation: fadeIn 0.3s ease-out; }
   @keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+  @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
   .tab-active { background: white; box-shadow: 0 1px 3px rgba(0,0,0,0.08); color: #1e293b; }
   canvas.pdf-page { box-shadow: 0 4px 12px rgba(0,0,0,0.1); border-radius: 4px; }
   .drop-zone.dragover { border-color: #3b82f6; background: #eff6ff; }
@@ -210,6 +211,7 @@ if (!window.appStore.training) {
 if (!window.appStore.nounConsolidations) window.appStore.nounConsolidations = [];
 if (!window.appStore.manualRedFlags) window.appStore.manualRedFlags = {};
 if (!window.appStore.userRedFlags) window.appStore.userRedFlags = [];
+if (!window.appStore.complianceReviews) window.appStore.complianceReviews = {};
 
 // Migrate: ensure new default document types are present for existing users
 (function migrateTypes() {
@@ -807,17 +809,66 @@ function runComplianceChecks() {
 
   // 5. System Red Flags
   for (const rf of SYSTEM_RED_FLAGS) {
-    var flag = { id:rf.id, text:rf.text, auto:true, triggered:false, details:[] };
+    var flag = { id:rf.id, text:rf.text, auto:true, triggered:false, details:[], sources:[] };
     switch(rf.id) {
-      case 'srf01': flag.triggered = results.sanctionedCountries.length > 0; flag.details = results.sanctionedCountries.map(function(s){return s.country+' ('+s.lists.join(', ')+')';}); break;
-      case 'srf02': flag.triggered = results.dualUseGoods.length > 0; flag.details = results.dualUseGoods.map(function(d){return d.type==='hs_code'?'HS '+d.hsCode+': '+d.desc:d.keyword;}); break;
-      case 'srf03': flag.triggered = results.priceAnomalies.length > 0; flag.details = results.priceAnomalies.map(function(p){return p.direction+'pricing: $'+p.price+' vs expected '+p.expected;}); break;
-      case 'srf04': flag.triggered = results.shellCompanies.length > 0; flag.details = results.shellCompanies.map(function(s){return s.name;}); break;
+      case 'srf01':
+        flag.triggered = results.sanctionedCountries.length > 0;
+        flag.details = results.sanctionedCountries.map(function(s){return s.country+' ('+s.lists.join(', ')+')';});
+        flag.sources = results.sanctionedCountries.map(function(s){
+          var occ = s.occurrences && s.occurrences[0] ? s.occurrences[0] : {};
+          return {docId:occ.docId||null, docName:occ.docName||s.matchedText, pageNum:occ.pageNum||0, detail:s.country+' ('+s.lists.join(', ')+')'};
+        });
+        break;
+      case 'srf02':
+        flag.triggered = results.dualUseGoods.length > 0;
+        flag.details = results.dualUseGoods.map(function(d){return d.type==='hs_code'?'HS '+d.hsCode+': '+d.desc:d.keyword;});
+        flag.sources = results.dualUseGoods.map(function(d){
+          return {docId:d.docId, docName:d.docName, pageNum:d.pageNum, detail:d.type==='hs_code'?'HS '+d.hsCode+': '+d.desc:d.keyword};
+        });
+        break;
+      case 'srf03':
+        flag.triggered = results.priceAnomalies.length > 0;
+        flag.details = results.priceAnomalies.map(function(p){return p.direction+'pricing: $'+p.price+' vs expected '+p.expected;});
+        flag.sources = results.priceAnomalies.map(function(p){
+          return {docId:p.docId, docName:p.docName, pageNum:p.pageNum, detail:p.direction+'pricing: $'+p.price+' vs '+p.expected};
+        });
+        break;
+      case 'srf04':
+        flag.triggered = results.shellCompanies.length > 0;
+        flag.details = results.shellCompanies.map(function(s){return s.name;});
+        flag.sources = results.shellCompanies.map(function(s){
+          var occ = s.occurrences && s.occurrences[0] ? s.occurrences[0] : {};
+          return {docId:occ.docId||null, docName:occ.docName||'', pageNum:occ.pageNum||0, detail:s.name+' ('+s.indicators.join(', ')+')'};
+        });
+        break;
       case 'srf05':
         var sellers = new Set(), buyers = new Set();
-        for (const doc of docs) for (const page of doc.pages) { if (page.extractedData && page.extractedData.seller) sellers.add(page.extractedData.seller.value.toLowerCase().trim()); if (page.extractedData && page.extractedData.buyer) buyers.add(page.extractedData.buyer.value.toLowerCase().trim()); }
+        var sellerSources = {}, buyerSources = {};
+        for (const doc of docs) for (const page of doc.pages) {
+          if (page.extractedData && page.extractedData.seller) {
+            var sv = page.extractedData.seller.value.toLowerCase().trim();
+            sellers.add(sv);
+            if (!sellerSources[sv]) sellerSources[sv] = [];
+            sellerSources[sv].push({docId:doc.id, docName:doc.filename, pageNum:page.pageNum, role:'seller'});
+          }
+          if (page.extractedData && page.extractedData.buyer) {
+            var bv = page.extractedData.buyer.value.toLowerCase().trim();
+            buyers.add(bv);
+            if (!buyerSources[bv]) buyerSources[bv] = [];
+            buyerSources[bv].push({docId:doc.id, docName:doc.filename, pageNum:page.pageNum, role:'buyer'});
+          }
+        }
         var overlap = Array.from(sellers).filter(function(s){return buyers.has(s);});
-        flag.triggered = overlap.length > 0; flag.details = overlap;
+        flag.triggered = overlap.length > 0;
+        flag.details = overlap;
+        flag.sources = [];
+        for (var oi = 0; oi < overlap.length; oi++) {
+          var entity = overlap[oi];
+          var allSrcs = (sellerSources[entity]||[]).concat(buyerSources[entity]||[]);
+          for (var si = 0; si < allSrcs.length; si++) {
+            flag.sources.push({docId:allSrcs[si].docId, docName:allSrcs[si].docName, pageNum:allSrcs[si].pageNum, detail:entity+' (as '+allSrcs[si].role+')'});
+          }
+        }
         break;
     }
     results.redFlags.push(flag);
@@ -951,66 +1002,135 @@ window.renderComplianceTab = function() {
 function renderCompOverview(el, results) {
   var html = '<div class="space-y-4">';
 
-  // Traffic light summary
-  html += '<div class="bg-white rounded-xl shadow-sm border border-gray-100 p-6">';
-  html += '<h3 class="text-sm font-semibold text-gray-900 mb-4">Compliance Summary</h3>';
-  html += '<div class="grid grid-cols-1 md:grid-cols-2 gap-4">';
+  // Calculate risk metrics
+  var triggeredFlags = results.redFlags.filter(function(f){ return f.triggered; });
+  var totalFlags = results.redFlags.length;
+  var highFindings = 0, medFindings = 0;
+  results.sanctionedCountries.forEach(function(s){ if(s.severity==='high') highFindings++; else medFindings++; });
+  results.dualUseGoods.forEach(function(s){ if(s.severity==='high') highFindings++; else medFindings++; });
+  results.priceAnomalies.forEach(function(s){ if(s.severity==='high') highFindings++; else medFindings++; });
+  results.shellCompanies.forEach(function(s){ if(s.severity==='high') highFindings++; else medFindings++; });
+  var totalFindings = highFindings + medFindings;
 
+  var riskLevel = 'LOW';
+  var riskColor = '#22c55e';
+  var riskBg = '#f0fdf4';
+  var riskBorder = '#bbf7d0';
+  var riskIcon = 'M9 12.75L11.25 15 15 9.75m-3-7.036A11.959 11.959 0 013.598 6 11.99 11.99 0 003 9.749c0 5.592 3.824 10.29 9 11.623 5.176-1.332 9-6.03 9-11.622 0-1.31-.21-2.571-.598-3.751h-.152c-3.196 0-6.1-1.248-8.25-3.285z';
+  if (highFindings > 0) { riskLevel = 'HIGH'; riskColor = '#ef4444'; riskBg = '#fef2f2'; riskBorder = '#fecaca'; riskIcon = 'M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z'; }
+  else if (medFindings > 0) { riskLevel = 'MEDIUM'; riskColor = '#eab308'; riskBg = '#fefce8'; riskBorder = '#fef08a'; riskIcon = 'M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z'; }
+
+  // Risk Score Banner
+  html += '<div class="rounded-xl border-2 p-5" style="background:' + riskBg + '; border-color:' + riskBorder + '">';
+  html += '<div class="flex items-center gap-4">';
+  html += '<div class="w-14 h-14 rounded-full flex items-center justify-center flex-shrink-0" style="background:' + riskColor + '20; border: 3px solid ' + riskColor + '">';
+  html += '<svg class="w-7 h-7" style="color:' + riskColor + '" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path d="' + riskIcon + '"/></svg>';
+  html += '</div>';
+  html += '<div class="flex-1">';
+  html += '<div class="flex items-center gap-2"><p class="text-xl font-bold" style="color:' + riskColor + '">' + riskLevel + ' RISK</p>';
+  html += '<span class="text-[10px] font-bold px-2 py-0.5 rounded-full" style="background:white; color:' + riskColor + '">' + triggeredFlags.length + ' of ' + totalFlags + ' checks flagged</span></div>';
+  html += '<p class="text-sm text-gray-600 mt-0.5">' + totalFindings + ' finding' + (totalFindings !== 1 ? 's' : '') + ' detected';
+  if (highFindings > 0) html += ' &mdash; <span class="font-semibold" style="color:#ef4444">' + highFindings + ' high severity</span>';
+  if (medFindings > 0) html += ', <span class="font-semibold" style="color:#eab308">' + medFindings + ' medium</span>';
+  html += '</p></div></div></div>';
+
+  // Category Summary Cards
+  html += '<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">';
   var categories = [
-    {label:'Sanctioned Countries', count:results.sanctionedCountries.length, icon:'globe'},
-    {label:'Dual-Use Goods', count:results.dualUseGoods.length, icon:'warning'},
-    {label:'Price Anomalies', count:results.priceAnomalies.length, icon:'dollar'},
-    {label:'Shell Company Flags', count:results.shellCompanies.length, icon:'building'}
+    {id:'sanctions', tab:'sanctions', label:'Sanctioned Countries', count:results.sanctionedCountries.length, flagId:'srf01', color:'#7c3aed', bg:'#f5f3ff', icon:'M12 21a9.004 9.004 0 008.716-6.747M12 21a9.004 9.004 0 01-8.716-6.747M12 21c2.485 0 4.5-4.03 4.5-9S14.485 3 12 3m0 18c-2.485 0-4.5-4.03-4.5-9S9.515 3 12 3m0 0a8.997 8.997 0 017.843 4.582M12 3a8.997 8.997 0 00-7.843 4.582m15.686 0A11.953 11.953 0 0112 10.5c-2.998 0-5.74-1.1-7.843-2.918m15.686 0A8.959 8.959 0 0121 12c0 .778-.099 1.533-.284 2.253m0 0A17.919 17.919 0 0112 16.5c-3.162 0-6.133-.815-8.716-2.247m0 0A9.015 9.015 0 013 12c0-1.605.42-3.113 1.157-4.418'},
+    {id:'dualuse', tab:'dualuse', label:'Dual-Use Goods', count:results.dualUseGoods.length, flagId:'srf02', color:'#ea580c', bg:'#fff7ed', icon:'M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z'},
+    {id:'pricing', tab:'pricing', label:'Price Anomalies', count:results.priceAnomalies.length, flagId:'srf03', color:'#0891b2', bg:'#ecfeff', icon:'M12 6v12m-3-2.818l.879.659c1.171.879 3.07.879 4.242 0 1.172-.879 1.172-2.303 0-3.182C13.536 12.219 12.768 12 12 12c-.725 0-1.45-.22-2.003-.659-1.106-.879-1.106-2.303 0-3.182s2.9-.879 4.006 0l.415.33M21 12a9 9 0 11-18 0 9 9 0 0118 0z'},
+    {id:'shell', tab:'shell', label:'Shell Companies', count:results.shellCompanies.length, flagId:'srf04', color:'#b45309', bg:'#fffbeb', icon:'M2.25 21h19.5m-18-18v18m10.5-18v18m6-13.5V21M6.75 6.75h.75m-.75 3h.75m-.75 3h.75m3-6h.75m-.75 3h.75m-.75 3h.75M6.75 21v-3.375c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125V21M3 3h12m-.75 4.5H21m-3.75 3h.008v.008h-.008v-.008zm0 3h.008v.008h-.008v-.008zm0 3h.008v.008h-.008v-.008z'},
+    {id:'roundtrip', tab:'redflags', label:'Round-Tripping', count:results.redFlags.filter(function(f){return f.id==='srf05' && f.triggered;}).length > 0 ? 1 : 0, flagId:'srf05', color:'#dc2626', bg:'#fef2f2', icon:'M19.5 12c0-1.232-.046-2.453-.138-3.662a4.006 4.006 0 00-3.7-3.7 48.678 48.678 0 00-7.324 0 4.006 4.006 0 00-3.7 3.7c-.017.22-.032.441-.046.662M19.5 12l3-3m-3 3l-3-3m-12 3c0 1.232.046 2.453.138 3.662a4.006 4.006 0 003.7 3.7 48.656 48.656 0 007.324 0 4.006 4.006 0 003.7-3.7c.017-.22.032-.441.046-.662M4.5 12l3 3m-3-3l-3 3'}
   ];
 
   for (var i = 0; i < categories.length; i++) {
     var cat = categories[i];
-    var statusColor = cat.count === 0 ? '#22c55e' : '#ef4444';
-    var statusBg = cat.count === 0 ? '#f0fdf4' : '#fef2f2';
-    var statusText = cat.count === 0 ? 'Clear' : cat.count + ' found';
-    html += '<div class="flex items-center gap-3 p-3 rounded-lg" style="background:' + statusBg + '">';
-    html += '<div class="w-3 h-3 rounded-full flex-shrink-0" style="background:' + statusColor + '"></div>';
-    html += '<div class="flex-1"><p class="text-sm font-medium text-gray-900">' + cat.label + '</p>';
-    html += '<p class="text-xs" style="color:' + statusColor + '">' + statusText + '</p></div>';
-    html += '<span class="text-lg font-bold" style="color:' + statusColor + '">' + cat.count + '</span>';
+    var review = window.appStore.complianceReviews[cat.flagId];
+    var catStatusColor = cat.count === 0 ? '#22c55e' : (cat.count > 0 ? '#ef4444' : '#6b7280');
+    html += '<div onclick="window._complianceTab=\'' + cat.tab + '\'; window.renderComplianceTab();" class="bg-white rounded-xl shadow-sm border border-gray-100 p-4 cursor-pointer hover:ring-2 hover:ring-brand-300 transition-all">';
+    html += '<div class="flex items-center justify-between mb-2">';
+    html += '<div class="w-8 h-8 rounded-lg flex items-center justify-center" style="background:' + cat.bg + '">';
+    html += '<svg class="w-4 h-4" style="color:' + cat.color + '" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path d="' + cat.icon + '"/></svg></div>';
+    html += '<span class="text-lg font-bold" style="color:' + catStatusColor + '">' + cat.count + '</span>';
     html += '</div>';
+    html += '<p class="text-xs font-medium text-gray-700">' + cat.label + '</p>';
+    html += '<div class="flex items-center gap-1.5 mt-1">';
+    if (cat.count === 0) {
+      html += '<span class="text-[10px] font-medium text-green-600">Clear</span>';
+    } else {
+      html += '<span class="w-1.5 h-1.5 rounded-full" style="background:#ef4444"></span>';
+      html += '<span class="text-[10px] font-medium" style="color:#ef4444">' + cat.count + ' found</span>';
+    }
+    if (review) {
+      html += '<span class="text-[10px] px-1.5 py-0.5 rounded-full ml-auto" style="background:' + (review.status === 'approved' ? '#f0fdf4' : '#fef2f2') + '; color:' + (review.status === 'approved' ? '#22c55e' : '#ef4444') + '">' + (review.status === 'approved' ? 'Approved' : 'Rejected') + '</span>';
+    }
+    html += '</div></div>';
+  }
+  html += '</div>';
+
+  // Review Progress
+  var reviewedCount = 0, approvedCount = 0, rejectedCount = 0, pendingCount = 0;
+  var triggeredSystemFlags = results.redFlags.filter(function(f){ return f.auto && f.triggered; });
+  for (var r = 0; r < triggeredSystemFlags.length; r++) {
+    var rev = window.appStore.complianceReviews[triggeredSystemFlags[r].id];
+    if (rev) { reviewedCount++; if (rev.status === 'approved') approvedCount++; else rejectedCount++; }
+    else { pendingCount++; }
+  }
+  var totalReviewable = triggeredSystemFlags.length;
+
+  if (totalReviewable > 0) {
+    html += '<div class="bg-white rounded-xl shadow-sm border border-gray-100 p-5">';
+    html += '<div class="flex items-center justify-between mb-3">';
+    html += '<h3 class="text-sm font-semibold text-gray-900">Review Progress</h3>';
+    html += '<span class="text-xs text-gray-500">' + reviewedCount + ' of ' + totalReviewable + ' findings reviewed</span>';
+    html += '</div>';
+    // Progress bar
+    var pct = totalReviewable > 0 ? Math.round(reviewedCount / totalReviewable * 100) : 0;
+    html += '<div class="w-full h-2 bg-gray-100 rounded-full overflow-hidden mb-3">';
+    if (approvedCount > 0) html += '<div class="h-full bg-green-500 float-left" style="width:' + Math.round(approvedCount/totalReviewable*100) + '%"></div>';
+    if (rejectedCount > 0) html += '<div class="h-full bg-red-500 float-left" style="width:' + Math.round(rejectedCount/totalReviewable*100) + '%"></div>';
+    html += '</div>';
+    html += '<div class="flex items-center gap-4 text-xs">';
+    html += '<span class="flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-green-500"></span> Approved: ' + approvedCount + '</span>';
+    html += '<span class="flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-red-500"></span> Rejected: ' + rejectedCount + '</span>';
+    html += '<span class="flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-gray-300"></span> Pending: ' + pendingCount + '</span>';
+    html += '</div></div>';
   }
 
-  html += '</div></div>';
-
-  // Red flags overview
-  html += '<div class="bg-white rounded-xl shadow-sm border border-gray-100 p-6">';
-  html += '<h3 class="text-sm font-semibold text-gray-900 mb-4">Red Flag Summary</h3>';
-  if (results.redFlags.length === 0) {
-    html += '<p class="text-sm text-gray-400">No red flags configured. Go to the Red Flags tab to add checks.</p>';
+  // Key Findings
+  html += '<div class="bg-white rounded-xl shadow-sm border border-gray-100 p-5">';
+  html += '<h3 class="text-sm font-semibold text-gray-900 mb-3">Key Findings</h3>';
+  if (triggeredFlags.length === 0) {
+    html += '<div class="text-center py-4"><svg class="w-10 h-10 text-green-300 mx-auto mb-2" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path d="M9 12.75L11.25 15 15 9.75m-3-7.036A11.959 11.959 0 013.598 6 11.99 11.99 0 003 9.749c0 5.592 3.824 10.29 9 11.623 5.176-1.332 9-6.03 9-11.622 0-1.31-.21-2.571-.598-3.751h-.152c-3.196 0-6.1-1.248-8.25-3.285z"/></svg>';
+    html += '<p class="text-sm text-gray-500">All compliance checks passed. No issues detected.</p></div>';
   } else {
     html += '<div class="space-y-2">';
-    for (var j = 0; j < results.redFlags.length; j++) {
-      var rf = results.redFlags[j];
-      var rfColor = rf.triggered ? '#ef4444' : '#22c55e';
-      var rfBg = rf.triggered ? '#fef2f2' : '#f0fdf4';
-      var rfIcon = rf.triggered ? '&#10007;' : '&#10003;';
-      html += '<div class="flex items-start gap-3 p-2.5 rounded-lg" style="background:' + rfBg + '">';
-      html += '<span class="font-bold text-sm mt-0.5" style="color:' + rfColor + '">' + rfIcon + '</span>';
+    for (var j = 0; j < triggeredFlags.length; j++) {
+      var rf = triggeredFlags[j];
+      var rfTabMap = {srf01:'sanctions', srf02:'dualuse', srf03:'pricing', srf04:'shell', srf05:'redflags'};
+      var rfTargetTab = rfTabMap[rf.id] || 'redflags';
+      html += '<div onclick="window._complianceTab=\'' + rfTargetTab + '\'; window.renderComplianceTab();" class="flex items-start gap-3 p-2.5 rounded-lg bg-red-50 cursor-pointer hover:bg-red-100 transition-colors">';
+      html += '<span class="font-bold text-sm mt-0.5 text-red-500">&#10007;</span>';
       html += '<div class="flex-1"><p class="text-sm text-gray-700">' + rf.text + '</p>';
-      if (rf.triggered && rf.details.length > 0) {
+      if (rf.details.length > 0) {
         html += '<p class="text-xs text-gray-500 mt-0.5">' + rf.details.slice(0,3).join('; ') + '</p>';
       }
       html += '</div>';
-      html += '<span class="text-[10px] font-medium px-1.5 py-0.5 rounded" style="background:' + (rf.auto ? '#eff6ff' : '#f5f3ff') + '; color:' + (rf.auto ? '#2563eb' : '#7c3aed') + '">' + (rf.auto ? 'AUTO' : 'USER') + '</span>';
+      html += '<svg class="w-4 h-4 text-gray-400 flex-shrink-0 mt-1" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M8.25 4.5l7.5 7.5-7.5 7.5"/></svg>';
       html += '</div>';
     }
     html += '</div>';
   }
   html += '</div>';
 
-  // Documents scanned
+  // Scan Coverage
   var docCount = window.appStore.documents.length;
   var pageCount = window.appStore.documents.reduce(function(s,d){return s+d.totalPages;},0);
-  html += '<div class="bg-white rounded-xl shadow-sm border border-gray-100 p-6">';
+  html += '<div class="bg-white rounded-xl shadow-sm border border-gray-100 p-5">';
   html += '<h3 class="text-sm font-semibold text-gray-900 mb-2">Scan Coverage</h3>';
-  html += '<p class="text-sm text-gray-500">' + docCount + ' documents (' + pageCount + ' pages) were scanned across all compliance checks.</p>';
-  html += '<p class="text-xs text-gray-400 mt-1">Reference data last updated: March 2026. Includes FATF, OFAC, EU, and UN sanctions lists.</p>';
+  html += '<p class="text-sm text-gray-500">' + docCount + ' document' + (docCount !== 1 ? 's' : '') + ' (' + pageCount + ' pages) scanned across all compliance checks.</p>';
+  html += '<p class="text-xs text-gray-400 mt-1">Reference data: FATF, OFAC, EU, and UN sanctions lists. Updated March 2026.</p>';
   html += '</div>';
 
   html += '</div>';
@@ -1039,26 +1159,86 @@ function renderCompRedFlags(el, results) {
 
   // System flags
   html += '<div class="mb-3"><p class="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">System Checks (Automatic)</p>';
-  html += '<div class="space-y-2">';
+  html += '<div class="space-y-3">';
   var systemFlags = results.redFlags.filter(function(f){return f.auto;});
   for (var i = 0; i < systemFlags.length; i++) {
     var sf = systemFlags[i];
     var sfColor = sf.triggered ? '#ef4444' : '#22c55e';
     var sfBg = sf.triggered ? '#fef2f2' : '#f0fdf4';
     var sfStatusText = sf.triggered ? 'TRIGGERED' : 'CLEAR';
-    html += '<div class="flex items-start gap-3 p-3 rounded-lg border" style="background:' + sfBg + '; border-color:' + (sf.triggered ? '#fecaca' : '#bbf7d0') + '">';
+    var review = window.appStore.complianceReviews[sf.id];
+    html += '<div class="rounded-lg border overflow-hidden" style="border-color:' + (sf.triggered ? '#fecaca' : '#bbf7d0') + '">';
+    html += '<div class="flex items-start gap-3 p-3" style="background:' + sfBg + '">';
     html += '<div class="w-5 h-5 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5" style="background:' + sfColor + '"><svg class="w-3 h-3 text-white" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path d="' + (sf.triggered ? 'M6 18L18 6M6 6l12 12' : 'M4.5 12.75l6 6 9-13.5') + '"/></svg></div>';
     html += '<div class="flex-1"><p class="text-sm font-medium text-gray-800">' + sf.text + '</p>';
     if (sf.triggered && sf.details.length > 0) {
-      html += '<div class="mt-1 space-y-0.5">';
+      html += '<div class="mt-1.5 space-y-0.5">';
       for (var d = 0; d < Math.min(sf.details.length, 5); d++) {
         html += '<p class="text-xs text-gray-500">&bull; ' + sf.details[d] + '</p>';
       }
       if (sf.details.length > 5) html += '<p class="text-xs text-gray-400">...and ' + (sf.details.length - 5) + ' more</p>';
       html += '</div>';
     }
+    // Source references
+    if (sf.triggered && sf.sources && sf.sources.length > 0) {
+      html += '<div class="mt-2 pt-2 border-t" style="border-color:' + (sf.triggered ? '#fecaca' : '#bbf7d0') + '">';
+      html += '<p class="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-1">Source References</p>';
+      html += '<div class="flex flex-wrap gap-1.5">';
+      var shownSources = {};
+      for (var s = 0; s < sf.sources.length; s++) {
+        var src = sf.sources[s];
+        var srcKey = (src.docId||'') + '_' + src.pageNum;
+        if (shownSources[srcKey]) continue;
+        shownSources[srcKey] = true;
+        if (src.docId) {
+          html += '<button onclick="window.showPdfPreviewModal(\'' + src.docId + '\',' + src.pageNum + ')" class="inline-flex items-center gap-1 px-2 py-1 rounded bg-white border border-gray-200 text-[10px] text-gray-600 hover:border-brand-400 hover:text-brand-700 transition-colors cursor-pointer">';
+          html += '<svg class="w-3 h-3" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z"/></svg>';
+          html += src.docName + ' &mdash; P' + src.pageNum + '</button>';
+        } else {
+          html += '<span class="inline-flex items-center gap-1 px-2 py-1 rounded bg-white border border-gray-200 text-[10px] text-gray-500">';
+          html += '<svg class="w-3 h-3" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z"/></svg>';
+          html += (src.docName || src.detail) + '</span>';
+        }
+      }
+      html += '</div></div>';
+    }
     html += '</div>';
+    // Status badge + review status
+    html += '<div class="flex flex-col items-end gap-1 flex-shrink-0">';
     html += '<span class="text-[10px] font-bold px-2 py-0.5 rounded-full" style="color:' + sfColor + '; background:white">' + sfStatusText + '</span>';
+    if (review) {
+      var revColor = review.status === 'approved' ? '#22c55e' : '#ef4444';
+      var revLabel = review.status === 'approved' ? 'Approved' : 'Rejected';
+      html += '<span class="text-[10px] font-medium px-2 py-0.5 rounded-full" style="color:' + revColor + '; background:' + (review.status === 'approved' ? '#f0fdf4' : '#fef2f2') + '">' + revLabel + '</span>';
+    }
+    html += '</div>';
+    html += '</div>';
+    // Review panel (for triggered flags)
+    if (sf.triggered) {
+      html += '<div class="px-3 py-2.5 bg-white border-t" style="border-color:' + (sf.triggered ? '#fecaca' : '#bbf7d0') + '">';
+      if (review) {
+        html += '<div class="flex items-start gap-3">';
+        var revBadgeColor = review.status === 'approved' ? '#22c55e' : '#ef4444';
+        var revBadgeBg = review.status === 'approved' ? '#f0fdf4' : '#fef2f2';
+        var revBadgeLabel = review.status === 'approved' ? 'Approved' : 'Rejected';
+        html += '<div class="flex-1">';
+        html += '<div class="flex items-center gap-2 mb-1"><span class="inline-flex items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded-full" style="color:' + revBadgeColor + '; background:' + revBadgeBg + '">' + (review.status === 'approved' ? '&#10003;' : '&#10007;') + ' ' + revBadgeLabel + '</span>';
+        html += '<span class="text-[10px] text-gray-400">' + (review.timestamp ? new Date(review.timestamp).toLocaleString() : '') + '</span></div>';
+        if (review.comment) html += '<p class="text-xs text-gray-600 italic">"' + review.comment + '"</p>';
+        html += '</div>';
+        html += '<button onclick="window.startComplianceReview(\'' + sf.id + '\')" class="text-[10px] text-gray-400 hover:text-gray-600 underline flex-shrink-0">Change</button>';
+        html += '</div>';
+      } else {
+        html += '<div id="review-panel-' + sf.id + '">';
+        html += '<div class="flex items-center gap-2">';
+        html += '<span class="text-[10px] font-semibold text-gray-500 uppercase">Review:</span>';
+        html += '<button onclick="window.startComplianceReview(\'' + sf.id + '\', \'approved\')" class="inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-[11px] font-medium bg-green-50 text-green-700 border border-green-200 hover:bg-green-100 transition-colors">&#10003; Approve</button>';
+        html += '<button onclick="window.startComplianceReview(\'' + sf.id + '\', \'rejected\')" class="inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-[11px] font-medium bg-red-50 text-red-700 border border-red-200 hover:bg-red-100 transition-colors">&#10007; Reject</button>';
+        html += '</div>';
+        html += '</div>';
+      }
+      html += '</div>';
+    }
     html += '</div>';
   }
   html += '</div></div>';
@@ -1198,7 +1378,7 @@ function renderCompDualUse(el, results) {
       html += '<thead><tr class="border-b border-gray-100"><th class="text-left py-2 px-3 text-xs font-semibold text-gray-500">HS Code</th><th class="text-left py-2 px-3 text-xs font-semibold text-gray-500">Description</th><th class="text-left py-2 px-3 text-xs font-semibold text-gray-500">Document</th><th class="text-left py-2 px-3 text-xs font-semibold text-gray-500">Severity</th></tr></thead><tbody>';
       for (var i = 0; i < hsMatches.length; i++) {
         var m = hsMatches[i];
-        html += '<tr class="border-b border-gray-50">';
+        html += '<tr class="border-b border-gray-50 cursor-pointer hover:bg-gray-50" onclick="window.showPdfPreviewModal(\'' + m.docId + '\',' + m.pageNum + ')">';
         html += '<td class="py-2.5 px-3 font-mono font-medium text-gray-900">' + m.hsCode + '</td>';
         html += '<td class="py-2.5 px-3 text-gray-600">' + m.desc + '</td>';
         html += '<td class="py-2.5 px-3 text-xs text-gray-500">' + m.docName + ' (p.' + m.pageNum + ')</td>';
@@ -1215,7 +1395,7 @@ function renderCompDualUse(el, results) {
       html += '<thead><tr class="border-b border-gray-100"><th class="text-left py-2 px-3 text-xs font-semibold text-gray-500">Keyword</th><th class="text-left py-2 px-3 text-xs font-semibold text-gray-500">Document</th><th class="text-left py-2 px-3 text-xs font-semibold text-gray-500">Severity</th></tr></thead><tbody>';
       for (var j = 0; j < kwMatches.length; j++) {
         var kw = kwMatches[j];
-        html += '<tr class="border-b border-gray-50">';
+        html += '<tr class="border-b border-gray-50 cursor-pointer hover:bg-gray-50" onclick="window.showPdfPreviewModal(\'' + kw.docId + '\',' + kw.pageNum + ')">';
         html += '<td class="py-2.5 px-3 font-medium text-gray-900">' + kw.keyword + '</td>';
         html += '<td class="py-2.5 px-3 text-xs text-gray-500">' + kw.docName + ' (p.' + kw.pageNum + ')</td>';
         html += '<td class="py-2.5 px-3"><span class="inline-block text-[10px] font-bold px-2 py-0.5 rounded-full" style="background:#fefce8; color:#eab308">MEDIUM</span></td>';
@@ -1265,7 +1445,7 @@ function renderCompPricing(el, results) {
       var paColor = pa.severity === 'high' ? '#ef4444' : '#eab308';
       var paBg = pa.severity === 'high' ? '#fef2f2' : '#fefce8';
       var dirIcon = pa.direction === 'under' ? '&#9660;' : '&#9650;';
-      html += '<tr class="border-b border-gray-50">';
+      html += '<tr class="border-b border-gray-50 cursor-pointer hover:bg-gray-50" onclick="window.showPdfPreviewModal(\'' + pa.docId + '\',' + pa.pageNum + ')">';
       html += '<td class="py-2.5 px-3 text-xs text-gray-600">' + pa.docName + ' (p.' + pa.pageNum + ')</td>';
       html += '<td class="py-2.5 px-3 font-medium text-gray-900">$' + pa.price.toLocaleString() + '</td>';
       html += '<td class="py-2.5 px-3 text-gray-600">' + pa.commodity + '</td>';
@@ -1307,14 +1487,19 @@ function renderCompShell(el, results) {
       }
       html += '</div>';
       if (sc.occurrences && sc.occurrences.length > 0) {
-        html += '<p class="text-xs text-gray-400 mt-1">Found in: ';
-        var docNames = [];
+        html += '<div class="flex flex-wrap gap-1 mt-2">';
         for (var o = 0; o < Math.min(sc.occurrences.length, 3); o++) {
-          docNames.push(sc.occurrences[o].docName || sc.occurrences[o].typeName || 'document');
+          var occ = sc.occurrences[o];
+          if (occ.docId) {
+            html += '<button onclick="window.showPdfPreviewModal(\'' + occ.docId + '\',' + (occ.pageNum||1) + ')" class="inline-flex items-center gap-1 px-2 py-1 rounded bg-white border border-gray-200 text-[10px] text-gray-600 hover:border-brand-400 hover:text-brand-700 transition-colors cursor-pointer">';
+            html += '<svg class="w-3 h-3" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z"/></svg>';
+            html += (occ.docName||occ.typeName||'document') + ' P' + (occ.pageNum||1) + '</button>';
+          } else {
+            html += '<span class="inline-flex items-center gap-1 px-2 py-1 rounded bg-white border border-gray-200 text-[10px] text-gray-500">' + (occ.docName||occ.typeName||'document') + '</span>';
+          }
         }
-        html += docNames.join(', ');
-        if (sc.occurrences.length > 3) html += ' +' + (sc.occurrences.length - 3) + ' more';
-        html += '</p>';
+        if (sc.occurrences.length > 3) html += '<span class="text-[10px] text-gray-400 self-center">+' + (sc.occurrences.length - 3) + ' more</span>';
+        html += '</div>';
       }
       html += '</div>';
       html += '<span class="inline-block text-[10px] font-bold px-2 py-0.5 rounded-full flex-shrink-0" style="background:white; color:' + scColor + '">' + sc.severity.toUpperCase() + '</span>';
@@ -1368,6 +1553,67 @@ window.uploadRedFlags = function(input) {
     renderCompliance(document.getElementById('main-content'));
   };
   reader.readAsText(file);
+};
+
+// Compliance review workflow
+window.startComplianceReview = function(flagId, presetStatus) {
+  var panel = document.getElementById('review-panel-' + flagId);
+  if (!panel) {
+    // Find the review section within the flag card and replace it
+    var allPanels = document.querySelectorAll('[id^="review-panel-"]');
+    // Look for the parent review area
+    panel = null;
+  }
+  // Build inline review form
+  var existing = window.appStore.complianceReviews[flagId];
+  var formHtml = '<div id="review-panel-' + flagId + '" class="space-y-2">';
+  formHtml += '<div class="flex items-center gap-2">';
+  formHtml += '<span class="text-[10px] font-semibold text-gray-500 uppercase">Decision:</span>';
+  formHtml += '<button onclick="window._reviewStatus[\'' + flagId + '\']=\'approved\'; this.classList.add(\'ring-2\',\'ring-green-400\'); this.nextElementSibling.classList.remove(\'ring-2\',\'ring-red-400\')" class="inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-[11px] font-medium bg-green-50 text-green-700 border border-green-200 hover:bg-green-100 transition-colors ' + (presetStatus === 'approved' ? 'ring-2 ring-green-400' : '') + '">&#10003; Approve</button>';
+  formHtml += '<button onclick="window._reviewStatus[\'' + flagId + '\']=\'rejected\'; this.classList.add(\'ring-2\',\'ring-red-400\'); this.previousElementSibling.classList.remove(\'ring-2\',\'ring-green-400\')" class="inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-[11px] font-medium bg-red-50 text-red-700 border border-red-200 hover:bg-red-100 transition-colors ' + (presetStatus === 'rejected' ? 'ring-2 ring-red-400' : '') + '">&#10007; Reject</button>';
+  formHtml += '</div>';
+  formHtml += '<textarea id="review-comment-' + flagId + '" rows="2" placeholder="Add reviewer comments (optional)..." class="w-full px-3 py-2 border border-gray-200 rounded-lg text-xs text-gray-700 focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-brand-500 resize-none">' + (existing ? existing.comment || '' : '') + '</textarea>';
+  formHtml += '<div class="flex items-center gap-2">';
+  formHtml += '<button onclick="window.submitComplianceReview(\'' + flagId + '\')" class="px-3 py-1.5 rounded-md text-[11px] font-medium bg-brand-600 text-white hover:bg-brand-700 transition-colors">Submit Review</button>';
+  formHtml += '<button onclick="window._complianceTab=\'redflags\'; window.renderComplianceTab();" class="px-3 py-1.5 rounded-md text-[11px] font-medium bg-gray-100 text-gray-600 hover:bg-gray-200 transition-colors">Cancel</button>';
+  if (existing) {
+    formHtml += '<button onclick="window.clearComplianceReview(\'' + flagId + '\')" class="px-3 py-1.5 rounded-md text-[11px] font-medium bg-red-50 text-red-600 hover:bg-red-100 transition-colors border border-red-200">Clear Review</button>';
+  }
+  formHtml += '</div></div>';
+
+  // Set initial status
+  if (!window._reviewStatus) window._reviewStatus = {};
+  window._reviewStatus[flagId] = presetStatus || (existing ? existing.status : null);
+
+  // Replace the review panel content
+  var target = document.getElementById('review-panel-' + flagId);
+  if (target) {
+    target.outerHTML = formHtml;
+  } else {
+    // Fallback: re-render the whole tab
+    window._complianceTab = 'redflags';
+    window.renderComplianceTab();
+  }
+};
+
+window.submitComplianceReview = function(flagId) {
+  var status = (window._reviewStatus || {})[flagId];
+  if (!status) { alert('Please select Approve or Reject before submitting.'); return; }
+  var commentEl = document.getElementById('review-comment-' + flagId);
+  var comment = commentEl ? commentEl.value.trim() : '';
+  window.appStore.complianceReviews[flagId] = { status: status, comment: comment, timestamp: new Date().toISOString() };
+  saveStore(window.appStore);
+  window._complianceResults = runComplianceChecks();
+  window._complianceTab = 'redflags';
+  window.renderComplianceTab();
+};
+
+window.clearComplianceReview = function(flagId) {
+  delete window.appStore.complianceReviews[flagId];
+  saveStore(window.appStore);
+  window._complianceResults = runComplianceChecks();
+  window._complianceTab = 'redflags';
+  window.renderComplianceTab();
 };
 
 // Toggle manual red flag answer
@@ -2703,6 +2949,87 @@ async function renderPdfPage(doc, pageNum) {
     console.error('PDF render error:', err);
   }
 }
+
+// ===================== PDF Preview Modal =====================
+window._previewPdfCache = { docId: null, pdf: null };
+window.showPdfPreviewModal = async function(docId, pageNum) {
+  // Find document info
+  var doc = window.appStore.documents.find(function(d){ return d.id === docId; });
+  if (!doc) { console.error('Document not found:', docId); return; }
+
+  // Remove existing modal
+  var existing = document.getElementById('pdf-preview-modal');
+  if (existing) existing.remove();
+
+  // Create modal
+  var modal = document.createElement('div');
+  modal.id = 'pdf-preview-modal';
+  modal.style.cssText = 'position:fixed;inset:0;z-index:9999;display:flex;align-items:center;justify-content:center;';
+  modal.innerHTML = '<div onclick="document.getElementById(\'pdf-preview-modal\').remove()" style="position:absolute;inset:0;background:rgba(0,0,0,0.6);backdrop-filter:blur(2px)"></div>' +
+    '<div style="position:relative;background:white;border-radius:12px;box-shadow:0 25px 50px rgba(0,0,0,0.25);max-width:850px;width:95%;max-height:90vh;display:flex;flex-direction:column;overflow:hidden">' +
+      '<div style="display:flex;align-items:center;justify-content:space-between;padding:12px 16px;border-bottom:1px solid #e5e7eb;flex-shrink:0">' +
+        '<div style="display:flex;align-items:center;gap:8px">' +
+          '<svg style="width:16px;height:16px;color:#6b7280" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z"/></svg>' +
+          '<span style="font-size:13px;font-weight:600;color:#111827">' + doc.filename + '</span>' +
+          '<span style="font-size:11px;color:#6b7280;background:#f3f4f6;padding:2px 8px;border-radius:4px">Page ' + pageNum + ' of ' + doc.totalPages + '</span>' +
+        '</div>' +
+        '<div style="display:flex;align-items:center;gap:6px">' +
+          '<button onclick="window.navigateFromPreview(\'' + docId + '\',' + pageNum + ')" style="font-size:11px;color:#4f46e5;background:#eef2ff;border:1px solid #c7d2fe;padding:4px 10px;border-radius:6px;cursor:pointer;font-weight:500">Open Full View</button>' +
+          '<button onclick="document.getElementById(\'pdf-preview-modal\').remove()" style="width:28px;height:28px;display:flex;align-items:center;justify-content:center;border-radius:6px;border:1px solid #e5e7eb;background:white;cursor:pointer;color:#6b7280;font-size:16px">&times;</button>' +
+        '</div>' +
+      '</div>' +
+      '<div id="pdf-preview-body" style="flex:1;overflow:auto;padding:16px;display:flex;align-items:flex-start;justify-content:center;background:#f9fafb">' +
+        '<div style="display:flex;flex-direction:column;align-items:center;gap:8px;padding:40px"><div class="spinner" style="width:32px;height:32px;border:3px solid #e5e7eb;border-top-color:#4f46e5;border-radius:50%;animation:spin 0.8s linear infinite"></div><span style="font-size:12px;color:#6b7280">Loading page...</span></div>' +
+      '</div>' +
+    '</div>';
+  document.body.appendChild(modal);
+
+  // Close on Escape key
+  var escHandler = function(e) { if (e.key === 'Escape') { modal.remove(); document.removeEventListener('keydown', escHandler); } };
+  document.addEventListener('keydown', escHandler);
+
+  // Render PDF page
+  try {
+    var pdf;
+    if (window._previewPdfCache.docId === docId && window._previewPdfCache.pdf) {
+      pdf = window._previewPdfCache.pdf;
+    } else {
+      var base64 = await loadPdf(docId);
+      if (!base64) { document.getElementById('pdf-preview-body').innerHTML = '<p style="color:#ef4444;font-size:13px">PDF data not found in storage.</p>'; return; }
+      var raw = atob(base64);
+      var arr = new Uint8Array(raw.length);
+      for (var i = 0; i < raw.length; i++) arr[i] = raw.charCodeAt(i);
+      pdf = await window.pdfjsLib.getDocument({ data: arr.slice(0) }).promise;
+      window._previewPdfCache = { docId: docId, pdf: pdf };
+    }
+    var page = await pdf.getPage(pageNum);
+    var scale = 1.5;
+    var viewport = page.getViewport({ scale: scale });
+    var canvas = document.createElement('canvas');
+    canvas.width = viewport.width;
+    canvas.height = viewport.height;
+    canvas.style.maxWidth = '100%';
+    canvas.style.height = 'auto';
+    canvas.style.borderRadius = '4px';
+    canvas.style.boxShadow = '0 1px 3px rgba(0,0,0,0.1)';
+    var ctx = canvas.getContext('2d');
+    await page.render({ canvasContext: ctx, viewport: viewport }).promise;
+    var body = document.getElementById('pdf-preview-body');
+    if (body) body.innerHTML = '';
+    if (body) body.appendChild(canvas);
+  } catch(err) {
+    console.error('Preview render error:', err);
+    var body = document.getElementById('pdf-preview-body');
+    if (body) body.innerHTML = '<p style="color:#ef4444;font-size:13px;padding:20px">Error rendering PDF page: ' + err.message + '</p>';
+  }
+};
+
+window.navigateFromPreview = function(docId, pageNum) {
+  var modal = document.getElementById('pdf-preview-modal');
+  if (modal) modal.remove();
+  window.activePageNum = pageNum;
+  window.navigate('document-detail', docId);
+};
 
 // ===================== Noun Identification =====================
 const NOUN_CATEGORIES = {
@@ -4216,7 +4543,7 @@ function renderPriceVariance(el) {
               : '<span class="font-bold ' + (an.severity === 'high' ? 'text-red-600' : 'text-yellow-600') + '">' + (an.direction === 'under' ? '▼' : '▲') + ' ' + an.variance + '% <span class="text-[9px] px-1.5 py-0.5 rounded-full ' + (an.severity === 'high' ? 'bg-red-100 text-red-700' : 'bg-yellow-100 text-yellow-700') + '">' + an.severity.toUpperCase() + '</span></span>')
               : '<span class="text-gray-300">—</span>';
             const refHtml = an ? '$' + an.refAvg.toLocaleString() + '/' + an.unit : (dc.matchedCommodityId ? '—' : '<span class="text-gray-300 text-[10px]">No match</span>');
-            return `<tr class="border-t border-gray-50 hover:bg-gray-50 ${an && an.severity !== 'normal' ? (an.severity === 'high' ? 'bg-red-50' : 'bg-yellow-50') : ''}">
+            return `<tr class="border-t border-gray-50 hover:bg-gray-50 cursor-pointer ${an && an.severity !== 'normal' ? (an.severity === 'high' ? 'bg-red-50' : 'bg-yellow-50') : ''}" onclick="window.showPdfPreviewModal('${dc.docId}',${dc.pageNum})">
               <td class="px-3 py-2 font-medium text-gray-900">${dc.docName} <span class="text-gray-400">P${dc.pageNum}</span></td>
               <td class="px-3 py-2 text-gray-700">${dc.description || dc.typeName || '—'}</td>
               <td class="px-3 py-2 font-mono text-gray-700">${dc.hsCode || '<span class="text-gray-300">—</span>'}</td>
@@ -4243,16 +4570,34 @@ function renderPriceVariance(el) {
 
       ${docCommsHtml}
 
-      <!-- Commodity selector -->
+      <!-- Commodity selector (filtered to relevant) -->
       <div>
         <p class="text-xs font-semibold text-gray-500 mb-2 uppercase tracking-wider">Reference Commodities</p>
         <div class="flex items-center gap-2 overflow-x-auto pb-2">
-          ${comms.map(c => `
-            <button onclick="window.selectedCommodityId='${c.id}';window.pvAnalysis=null;renderPriceVariance(document.getElementById('main-content'))" class="flex-shrink-0 px-4 py-2.5 rounded-xl text-sm font-medium transition-all ${window.selectedCommodityId===c.id ? 'bg-brand-600 text-white shadow-md' : 'bg-white text-gray-600 hover:bg-gray-50 border border-gray-200'}">
-              ${c.name}
-            </button>
-          `).join('')}
+          ${(() => {
+            const relevantIds = new Set(docCommodities.filter(dc => dc.matchedCommodityId).map(dc => dc.matchedCommodityId));
+            const relevantComms = comms.filter(c => relevantIds.has(c.id));
+            const displayComms = (relevantComms.length > 0 && !window._showAllCommodities) ? relevantComms : comms;
+            if (relevantComms.length > 0 && !relevantIds.has(window.selectedCommodityId)) {
+              window.selectedCommodityId = relevantComms[0].id;
+            }
+            return displayComms.map(c => `
+              <button onclick="window.selectedCommodityId='${c.id}';window.pvAnalysis=null;renderPriceVariance(document.getElementById('main-content'))" class="flex-shrink-0 px-4 py-2.5 rounded-xl text-sm font-medium transition-all ${window.selectedCommodityId===c.id ? 'bg-brand-600 text-white shadow-md' : 'bg-white text-gray-600 hover:bg-gray-50 border border-gray-200'}">
+                ${c.name}
+              </button>
+            `).join('');
+          })()}
         </div>
+        ${(() => {
+          const relevantIds = new Set(docCommodities.filter(dc => dc.matchedCommodityId).map(dc => dc.matchedCommodityId));
+          if (relevantIds.size > 0 && relevantIds.size < comms.length) {
+            if (window._showAllCommodities) {
+              return '<p class="text-[10px] text-gray-400 mt-0.5">Showing all ' + comms.length + ' commodities. <button onclick="window._showAllCommodities=false;renderPriceVariance(document.getElementById(\'main-content\'))" class="text-brand-600 hover:underline">Show relevant only</button></p>';
+            }
+            return '<p class="text-[10px] text-gray-400 mt-0.5">Showing ' + relevantIds.size + ' of ' + comms.length + ' commodities matching your documents. <button onclick="window._showAllCommodities=true;renderPriceVariance(document.getElementById(\'main-content\'))" class="text-brand-600 hover:underline">Show all</button></p>';
+          }
+          return '';
+        })()}
       </div>
 
       <!-- Info cards -->
