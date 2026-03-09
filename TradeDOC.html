@@ -480,6 +480,105 @@ function pageNeedsOCR(textLayerText) {
   return stripped.length < OCR_TEXT_THRESHOLD;
 }
 
+// ===================== Display Formatting =====================
+// Format display values: dates, numbers, amounts
+function formatDisplayValue(value, label) {
+  if (!value || typeof value !== 'string') return value;
+  const lbl = (label || '').toLowerCase();
+
+  // Date fields: validate and format
+  if (lbl.includes('date') || lbl.includes('expiry') || lbl.includes('issued')) {
+    return formatDateValue(value);
+  }
+
+  // Amount/Price fields: format with currency and commas
+  if (lbl.includes('amount') || lbl.includes('price') || lbl.includes('insured') || lbl.includes('duty')) {
+    return formatAmountValue(value);
+  }
+
+  // Quantity/Weight/Volume/Packages: format numbers with commas
+  if (lbl.includes('quantity') || lbl.includes('weight') || lbl.includes('volume') || lbl.includes('packages') || lbl.includes('qty')) {
+    return formatNumberValue(value);
+  }
+
+  return value;
+}
+
+function formatDateValue(val) {
+  // Try to parse common date formats and return consistent format
+  const v = val.trim();
+  // Already well-formatted: DD/MM/YYYY, MM/DD/YYYY, YYYY-MM-DD
+  const isoMatch = v.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
+  if (isoMatch) {
+    const d = new Date(parseInt(isoMatch[1]), parseInt(isoMatch[2])-1, parseInt(isoMatch[3]));
+    if (!isNaN(d.getTime())) return d.toLocaleDateString('en-GB', { day:'2-digit', month:'short', year:'numeric' });
+  }
+  const slashMatch = v.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2,4})$/);
+  if (slashMatch) {
+    let day = parseInt(slashMatch[1]), mon = parseInt(slashMatch[2]), yr = parseInt(slashMatch[3]);
+    if (yr < 100) yr += 2000;
+    const d = new Date(yr, mon-1, day);
+    if (!isNaN(d.getTime())) return d.toLocaleDateString('en-GB', { day:'2-digit', month:'short', year:'numeric' });
+  }
+  // "15 January 2025" style
+  const longMatch = v.match(/^(\d{1,2})\s+(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\s+(\d{2,4})$/i);
+  if (longMatch) {
+    const months = ['jan','feb','mar','apr','may','jun','jul','aug','sep','oct','nov','dec'];
+    let yr = parseInt(longMatch[3]); if (yr < 100) yr += 2000;
+    const d = new Date(yr, months.indexOf(longMatch[2].toLowerCase().substring(0,3)), parseInt(longMatch[1]));
+    if (!isNaN(d.getTime())) return d.toLocaleDateString('en-GB', { day:'2-digit', month:'short', year:'numeric' });
+  }
+  return val; // return as-is if can't parse
+}
+
+function formatAmountValue(val) {
+  const v = val.trim();
+  // Extract currency prefix if present (e.g. "USD 50000.00 per MT")
+  const currMatch = v.match(/^([A-Z]{3})\s+(.+)$/);
+  let currency = '', rest = v;
+  if (currMatch) { currency = currMatch[1]; rest = currMatch[2]; }
+
+  // Extract suffix (e.g. "per MT")
+  const suffixMatch = rest.match(/^([0-9,.\s]+)\s+(.+)$/);
+  let numPart = rest, suffix = '';
+  if (suffixMatch) { numPart = suffixMatch[1]; suffix = suffixMatch[2]; }
+
+  // Format the number part with commas
+  const num = parseFloat(numPart.replace(/,/g, ''));
+  if (!isNaN(num)) {
+    const formatted = num.toLocaleString('en-US', { minimumFractionDigits: num % 1 !== 0 ? 2 : 0, maximumFractionDigits: 2 });
+    return (currency ? currency + ' ' : '') + formatted + (suffix ? ' ' + suffix : '');
+  }
+  return val;
+}
+
+function formatNumberValue(val) {
+  const v = val.trim();
+  // Extract numeric part and unit suffix (e.g. "500 MT" or "1000.50 KG")
+  const match = v.match(/^([0-9,.\s]+)\s*(.*)$/);
+  if (match) {
+    const num = parseFloat(match[1].replace(/,/g, ''));
+    if (!isNaN(num)) {
+      const formatted = num.toLocaleString('en-US', { minimumFractionDigits: num % 1 !== 0 ? 2 : 0, maximumFractionDigits: 2 });
+      return formatted + (match[2] ? ' ' + match[2] : '');
+    }
+  }
+  return val;
+}
+
+// Date validation helper for input fields
+function isValidDate(str) {
+  if (!str) return false;
+  const v = str.trim();
+  // DD/MM/YYYY or DD-MM-YYYY
+  if (/^\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4}$/.test(v)) return true;
+  // YYYY-MM-DD
+  if (/^\d{4}-\d{1,2}-\d{1,2}$/.test(v)) return true;
+  // "15 January 2025"
+  if (/^\d{1,2}\s+(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\s+\d{2,4}$/i.test(v)) return true;
+  return false;
+}
+
 // ===================== Price Data =====================
 window.priceData = {
   commodities: [
@@ -649,23 +748,44 @@ function runComplianceChecks() {
     }
   }
 
-  // 3. Price Anomalies (use priceData if available)
+  // 3. Price Anomalies (use priceData if available) — scan ALL price/amount fields by label
   if (window.priceData && window.priceData.commodities) {
     for (const doc of docs) {
       for (const page of doc.pages) {
         const ed = page.extractedData || {};
-        if (ed.totalAmount) {
-          var priceStr = ed.totalAmount.value.replace(/[^0-9.]/g, '');
-          var price = parseFloat(priceStr);
-          if (price && price > 0) {
-            for (const commodity of window.priceData.commodities) {
-              var globalMin = Math.min.apply(null, commodity.prices.map(function(p){return p.min;}));
-              var globalMax = Math.max.apply(null, commodity.prices.map(function(p){return p.max;}));
-              if (price < globalMin * 0.5) {
-                results.priceAnomalies.push({ price:price, commodity:commodity.name, expected:globalMin+' - '+globalMax, variance:((price-globalMin)/globalMin*100).toFixed(1), direction:'under', severity:'high', docId:doc.id, docName:doc.filename, pageNum:page.pageNum });
-              } else if (price > globalMax * 2) {
-                results.priceAnomalies.push({ price:price, commodity:commodity.name, expected:globalMin+' - '+globalMax, variance:((price-globalMax)/globalMax*100).toFixed(1), direction:'over', severity:'medium', docId:doc.id, docName:doc.filename, pageNum:page.pageNum });
-              }
+        if (!ed || Object.keys(ed).length === 0) continue;
+
+        // Collect all price-like values from any field (handles manual/goods keys)
+        const priceFields = [];
+        const hsCodeVal = findFieldByLabel(ed, ['hs code', 'hs_code', 'tariff']);
+        for (const [key, field] of Object.entries(ed)) {
+          const lbl = (field.label || '').toLowerCase();
+          if (lbl.includes('amount') || lbl.includes('price') || lbl.includes('total') || lbl.includes('insured') || lbl.includes('duty')) {
+            var priceStr = (field.value || '').replace(/[A-Z]{3}\s*/g, '').replace(/,/g, '').replace(/\s*per\s+.*/i, '');
+            var price = parseFloat(priceStr.replace(/[^0-9.]/g, ''));
+            if (price && price > 0) priceFields.push({ price: price, label: field.label });
+          }
+        }
+
+        for (const pf of priceFields) {
+          // If we have an HS code, only match against its commodity; otherwise check all
+          const commoditiesToCheck = [];
+          if (hsCodeVal) {
+            const matched = window.priceData.commodities.find(function(c) { return hsCodeVal.startsWith(c.hsCode); });
+            if (matched) commoditiesToCheck.push(matched);
+          }
+          if (commoditiesToCheck.length === 0 && !hsCodeVal) {
+            // No HS code, check against all commodities for anomalies
+            commoditiesToCheck.push.apply(commoditiesToCheck, window.priceData.commodities);
+          }
+
+          for (const commodity of commoditiesToCheck) {
+            var globalMin = Math.min.apply(null, commodity.prices.map(function(p){return p.min;}));
+            var globalMax = Math.max.apply(null, commodity.prices.map(function(p){return p.max;}));
+            if (pf.price < globalMin * 0.5) {
+              results.priceAnomalies.push({ price:pf.price, commodity:commodity.name, expected:'$'+globalMin.toLocaleString()+' - $'+globalMax.toLocaleString(), variance:((pf.price-globalMin)/globalMin*100).toFixed(1), direction:'under', severity:'high', docId:doc.id, docName:doc.filename, pageNum:page.pageNum, fieldLabel:pf.label });
+            } else if (pf.price > globalMax * 2) {
+              results.priceAnomalies.push({ price:pf.price, commodity:commodity.name, expected:'$'+globalMin.toLocaleString()+' - $'+globalMax.toLocaleString(), variance:((pf.price-globalMax)/globalMax*100).toFixed(1), direction:'over', severity:'medium', docId:doc.id, docName:doc.filename, pageNum:page.pageNum, fieldLabel:pf.label });
             }
           }
         }
@@ -2188,7 +2308,7 @@ function renderDocumentDetail(el) {
                     <tr class="border-b border-gray-50 last:border-0 hover:bg-gray-50 group">
                       <td class="px-3 py-2.5 text-xs font-medium text-gray-500 bg-gray-50 w-2/5 align-top">${v.label}</td>
                       <td class="px-3 py-2.5 text-xs font-semibold text-gray-900 cursor-pointer" ondblclick="editExtractedField(this, '${k}')">
-                        <span class="editable-value">${typeof v.value === 'string' ? v.value : JSON.stringify(v.value)}</span>
+                        <span class="editable-value">${formatDisplayValue(typeof v.value === 'string' ? v.value : JSON.stringify(v.value), v.label)}</span>
                         <svg class="w-3 h-3 text-gray-300 group-hover:text-gray-500 inline ml-1 opacity-0 group-hover:opacity-100 transition-opacity" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931z"/></svg>
                       </td>
                     </tr>
@@ -3173,6 +3293,17 @@ window.saveNewExtractedField = function(fieldType) {
   if (!label) { labelInput.focus(); return; }
   if (!value) { valueInput.focus(); return; }
 
+  // Validate date fields
+  if (label.toLowerCase().includes('date') || label.toLowerCase().includes('expiry')) {
+    if (!isValidDate(value)) {
+      valueInput.style.borderColor = '#ef4444';
+      valueInput.setAttribute('title', 'Please enter a valid date (DD/MM/YYYY, YYYY-MM-DD, or DD Mon YYYY)');
+      valueInput.focus();
+      setTimeout(() => { valueInput.style.borderColor = ''; }, 3000);
+      return;
+    }
+  }
+
   // For amount type, prepend currency and append unit
   if (fieldType === 'amount') {
     const currSel = document.getElementById('new-field-currency');
@@ -3914,26 +4045,68 @@ function showMsg(containerId, type, text) {
 window.selectedCommodityId = null;
 window.pvAnalysis = null;
 
+// Helper: find field value by label pattern across all extractedData entries (handles manual/goods keys)
+function findFieldByLabel(ed, labelPatterns) {
+  for (const [key, field] of Object.entries(ed)) {
+    const lbl = (field.label || '').toLowerCase();
+    for (const pattern of labelPatterns) {
+      if (lbl.includes(pattern)) return (field.value || '').trim();
+    }
+  }
+  return '';
+}
+
+// Extract numeric price from amount string like "USD 390,000.00" or "780.00"
+function extractNumericPrice(str) {
+  if (!str) return 0;
+  const cleaned = str.replace(/[A-Z]{3}\s*/g, '').replace(/,/g, '').replace(/\s*per\s+.*/i, '').trim();
+  const num = parseFloat(cleaned);
+  return isNaN(num) ? 0 : num;
+}
+
 function getDocumentCommodities() {
   const items = [];
   for (const doc of window.appStore.documents) {
     for (const page of doc.pages) {
       const ed = page.extractedData || {};
-      const hasRelevant = ed.hsCode || ed.totalAmount || ed.amount || ed.quantity || ed.grossWeight;
+      if (!ed || Object.keys(ed).length === 0) continue;
+
+      // Scan all fields by label (handles fixed keys AND manual/goods_ keys)
+      const hsCode = findFieldByLabel(ed, ['hs code', 'hs_code', 'tariff']);
+      const totalAmount = findFieldByLabel(ed, ['total amount', 'total_amount', 'amount due']);
+      const amount = findFieldByLabel(ed, ['amount', 'credit amount', 'insured value']);
+      const unitPrice = findFieldByLabel(ed, ['unit price', 'unit_price', 'price per']);
+      const currency = findFieldByLabel(ed, ['currency']);
+      const quantity = findFieldByLabel(ed, ['quantity', 'qty', 'total packages']);
+      const grossWeight = findFieldByLabel(ed, ['gross weight', 'gross_weight', 'g.w']);
+      const netWeight = findFieldByLabel(ed, ['net weight', 'net_weight', 'n.w']);
+      const description = findFieldByLabel(ed, ['description']);
+
+      const hasRelevant = hsCode || totalAmount || amount || unitPrice || quantity || grossWeight;
       if (!hasRelevant) continue;
-      const hsCode = (ed.hsCode?.value || '').trim();
+
       // Find matching reference commodity by HS code prefix
       let matchedCommodity = null;
       if (hsCode && window.priceData?.commodities) {
         matchedCommodity = window.priceData.commodities.find(c => hsCode.startsWith(c.hsCode));
       }
+
+      // Determine best price for comparison: totalAmount > unitPrice > amount
+      const bestAmount = totalAmount || amount;
+      const numericPrice = extractNumericPrice(unitPrice || bestAmount);
+
       items.push({
         docId: doc.id, docName: doc.filename, pageNum: page.pageNum,
-        typeName: page.classification.typeName,
+        typeName: page.classification ? page.classification.typeName : 'Unknown',
         hsCode: hsCode,
-        amount: (ed.totalAmount?.value || ed.amount?.value || ed.insuredValue?.value || '').trim(),
-        currency: (ed.currency?.value || '').trim(),
-        quantity: (ed.quantity?.value || ed.totalPackages?.value || ed.grossWeight?.value || '').trim(),
+        description: description,
+        amount: bestAmount,
+        unitPrice: unitPrice,
+        numericPrice: numericPrice,
+        currency: currency,
+        quantity: quantity,
+        grossWeight: grossWeight,
+        netWeight: netWeight,
         matchedCommodityId: matchedCommodity ? matchedCommodity.id : null,
         matchedCommodityName: matchedCommodity ? matchedCommodity.name : null
       });
@@ -3948,38 +4121,101 @@ function renderPriceVariance(el) {
   const selected = comms.find(c => c.id === window.selectedCommodityId);
   if (!selected) return;
 
+  if (!window._pvExportCountry) window._pvExportCountry = '';
+  if (!window._pvImportCountry) window._pvImportCountry = '';
+
   const trades = window.priceData.tradeFlows.filter(t => t.commodity === selected.name);
   const docCommodities = getDocumentCommodities();
 
+  // Build anomaly analysis for each doc commodity
+  const anomalies = [];
+  for (const dc of docCommodities) {
+    if (!dc.matchedCommodityId || dc.numericPrice <= 0) continue;
+    const comm = comms.find(c => c.id === dc.matchedCommodityId);
+    if (!comm) continue;
+
+    // Compare against selected country or all countries
+    let comparePrice = null, compareCountry = 'Global';
+    if (window._pvExportCountry) {
+      const cp = comm.prices.find(p => p.country === window._pvExportCountry);
+      if (cp) { comparePrice = cp; compareCountry = cp.country; }
+    }
+
+    const globalMin = Math.min(...comm.prices.map(p => p.min));
+    const globalMax = Math.max(...comm.prices.map(p => p.max));
+    const refMin = comparePrice ? comparePrice.min : globalMin;
+    const refMax = comparePrice ? comparePrice.max : globalMax;
+    const refAvg = comparePrice ? comparePrice.avg : comm.refPrice;
+
+    const variance = ((dc.numericPrice - refAvg) / refAvg * 100).toFixed(1);
+    let severity = 'normal', direction = '';
+    if (dc.numericPrice < refMin * 0.5) { severity = 'high'; direction = 'under'; }
+    else if (dc.numericPrice < refMin * 0.8) { severity = 'medium'; direction = 'under'; }
+    else if (dc.numericPrice > refMax * 2) { severity = 'high'; direction = 'over'; }
+    else if (dc.numericPrice > refMax * 1.3) { severity = 'medium'; direction = 'over'; }
+
+    anomalies.push({ ...dc, commodity: comm.name, refMin, refMax, refAvg, variance, severity, direction, compareCountry, unit: comm.unit });
+  }
+
+  const anomalyCount = anomalies.filter(a => a.severity !== 'normal').length;
+
+  // --- From Your Documents section with anomaly indicators ---
   const docCommsHtml = docCommodities.length > 0 ? `
     <div class="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
-      <div class="px-4 py-3 border-b border-gray-100 flex items-center gap-2">
-        <svg class="w-4 h-4 text-brand-600" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z"/></svg>
-        <span class="text-sm font-semibold text-gray-700">From Your Documents</span>
-        <span class="text-xs text-gray-400">${docCommodities.length} item${docCommodities.length !== 1 ? 's' : ''} extracted</span>
+      <div class="px-4 py-3 border-b border-gray-100 flex items-center justify-between">
+        <div class="flex items-center gap-2">
+          <svg class="w-4 h-4 text-brand-600" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z"/></svg>
+          <span class="text-sm font-semibold text-gray-700">From Your Documents</span>
+          <span class="text-xs text-gray-400">${docCommodities.length} item${docCommodities.length !== 1 ? 's' : ''} extracted</span>
+        </div>
+        ${anomalyCount > 0 ? '<span class="inline-flex items-center gap-1 px-2 py-1 rounded-full text-[10px] font-bold bg-red-100 text-red-700"><svg class="w-3 h-3" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126z"/></svg> ' + anomalyCount + ' Price Anomal' + (anomalyCount > 1 ? 'ies' : 'y') + '</span>' : '<span class="inline-flex items-center gap-1 px-2 py-1 rounded-full text-[10px] font-bold bg-green-100 text-green-700">✓ No Anomalies</span>'}
+      </div>
+      <!-- Country selectors -->
+      <div class="px-4 py-2 bg-gray-50 border-b border-gray-100 flex items-center gap-3 flex-wrap">
+        <span class="text-[10px] font-semibold text-gray-500 uppercase">Compare against:</span>
+        <label class="text-[10px] text-gray-600">Export Country
+          <select id="pv-export-country" onchange="window._pvExportCountry=this.value;renderPriceVariance(document.getElementById('main-content'))" class="ml-1 px-2 py-1 border border-gray-300 rounded text-xs bg-white">
+            <option value="">All (Global Range)</option>
+            ${[...new Set(comms.flatMap(c => c.prices.map(p => p.country)))].sort().map(c => '<option value="' + c + '"' + (window._pvExportCountry === c ? ' selected' : '') + '>' + c + '</option>').join('')}
+          </select>
+        </label>
+        <label class="text-[10px] text-gray-600">Import Country
+          <select id="pv-import-country" onchange="window._pvImportCountry=this.value;renderPriceVariance(document.getElementById('main-content'))" class="ml-1 px-2 py-1 border border-gray-300 rounded text-xs bg-white">
+            <option value="">Not specified</option>
+            ${[...new Set(comms.flatMap(c => c.prices.map(p => p.country)))].sort().map(c => '<option value="' + c + '"' + (window._pvImportCountry === c ? ' selected' : '') + '>' + c + '</option>').join('')}
+          </select>
+        </label>
       </div>
       <table class="w-full text-xs">
         <thead><tr class="bg-gray-50 text-gray-500 font-medium">
           <th class="px-3 py-2 text-left">Document</th>
-          <th class="px-3 py-2 text-left">Type</th>
+          <th class="px-3 py-2 text-left">Description</th>
           <th class="px-3 py-2 text-left">HS Code</th>
+          <th class="px-3 py-2 text-right">Unit Price</th>
           <th class="px-3 py-2 text-right">Amount</th>
-          <th class="px-3 py-2 text-right">Quantity</th>
-          <th class="px-3 py-2 text-center">Compare</th>
+          <th class="px-3 py-2 text-right">Qty</th>
+          <th class="px-3 py-2 text-center">Ref Price</th>
+          <th class="px-3 py-2 text-center">Variance</th>
         </tr></thead>
         <tbody>
-          ${docCommodities.map(dc => `
-            <tr class="border-t border-gray-50 hover:bg-gray-50">
+          ${docCommodities.map(dc => {
+            const an = anomalies.find(a => a.docId === dc.docId && a.pageNum === dc.pageNum);
+            const varHtml = an ? (an.severity === 'normal'
+              ? '<span class="text-green-600 font-medium">✓ ' + an.variance + '%</span>'
+              : '<span class="font-bold ' + (an.severity === 'high' ? 'text-red-600' : 'text-yellow-600') + '">' + (an.direction === 'under' ? '▼' : '▲') + ' ' + an.variance + '% <span class="text-[9px] px-1.5 py-0.5 rounded-full ' + (an.severity === 'high' ? 'bg-red-100 text-red-700' : 'bg-yellow-100 text-yellow-700') + '">' + an.severity.toUpperCase() + '</span></span>')
+              : '<span class="text-gray-300">—</span>';
+            const refHtml = an ? '$' + an.refAvg.toLocaleString() + '/' + an.unit : (dc.matchedCommodityId ? '—' : '<span class="text-gray-300 text-[10px]">No match</span>');
+            return `<tr class="border-t border-gray-50 hover:bg-gray-50 ${an && an.severity !== 'normal' ? (an.severity === 'high' ? 'bg-red-50' : 'bg-yellow-50') : ''}">
               <td class="px-3 py-2 font-medium text-gray-900">${dc.docName} <span class="text-gray-400">P${dc.pageNum}</span></td>
-              <td class="px-3 py-2"><span class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium bg-blue-100 text-blue-800">${dc.typeName}</span></td>
+              <td class="px-3 py-2 text-gray-700">${dc.description || dc.typeName || '—'}</td>
               <td class="px-3 py-2 font-mono text-gray-700">${dc.hsCode || '<span class="text-gray-300">—</span>'}</td>
-              <td class="px-3 py-2 text-right text-gray-900">${dc.currency ? dc.currency + ' ' : ''}${dc.amount || '<span class="text-gray-300">—</span>'}</td>
-              <td class="px-3 py-2 text-right text-gray-700">${dc.quantity || '<span class="text-gray-300">—</span>'}</td>
-              <td class="px-3 py-2 text-center">${dc.matchedCommodityId
-                ? '<button onclick="window.selectedCommodityId=\'' + dc.matchedCommodityId + '\';window.pvAnalysis=null;renderPriceVariance(document.getElementById(\'main-content\'))" class="text-brand-600 hover:text-brand-700 font-medium text-[10px]">' + dc.matchedCommodityName + ' →</button>'
-                : '<span class="text-gray-300 text-[10px]">No match</span>'}</td>
-            </tr>
-          `).join('')}
+              <td class="px-3 py-2 text-right text-gray-900">${dc.unitPrice ? formatAmountValue(dc.unitPrice) : '<span class="text-gray-300">—</span>'}</td>
+              <td class="px-3 py-2 text-right text-gray-900">${dc.amount ? formatAmountValue((dc.currency ? dc.currency + ' ' : '') + dc.amount) : '<span class="text-gray-300">—</span>'}</td>
+              <td class="px-3 py-2 text-right text-gray-700">${dc.quantity ? formatNumberValue(dc.quantity) : '<span class="text-gray-300">—</span>'}</td>
+              <td class="px-3 py-2 text-center text-gray-600 text-[10px]">${refHtml}</td>
+              <td class="px-3 py-2 text-center">${varHtml}</td>
+            </tr>`;
+          }).join('')}
         </tbody>
       </table>
     </div>
