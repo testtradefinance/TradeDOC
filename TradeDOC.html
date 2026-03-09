@@ -1568,9 +1568,9 @@ function renderUpload(el) {
           <div class="w-16 h-16 bg-gray-100 rounded-2xl flex items-center justify-center">
             <svg class="w-8 h-8 text-gray-400" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5"/></svg>
           </div>
-          <div><p class="text-sm font-medium text-gray-700">Drop PDF file here or <span class="text-brand-600">click to browse</span></p><p class="text-xs text-gray-400 mt-1">Supports multipage PDF documents</p></div>
+          <div><p class="text-sm font-medium text-gray-700">Drop PDF files here or <span class="text-brand-600">click to browse</span></p><p class="text-xs text-gray-400 mt-1">Supports multipage PDF documents. Select multiple files at once.</p></div>
         </div>
-        <input type="file" id="file-input" accept=".pdf,application/pdf" class="hidden">
+        <input type="file" id="file-input" accept=".pdf,application/pdf" class="hidden" multiple>
       </div>
 
       <div id="file-info" class="hidden bg-white rounded-xl shadow-sm border border-green-200 p-4">
@@ -1583,7 +1583,7 @@ function renderUpload(el) {
 
       <button id="upload-btn" onclick="processFile()" class="hidden w-full bg-brand-600 hover:bg-brand-700 text-white font-medium py-3 rounded-lg transition-colors flex items-center justify-center gap-2">
         <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5"/></svg>
-        Upload & Process Document
+        Upload & Process Document(s)
       </button>
 
       <div id="progress-bar" class="hidden w-full bg-gray-200 rounded-full h-2"><div id="progress-fill" class="bg-brand-600 h-2 rounded-full transition-all duration-300" style="width:0%"></div></div>
@@ -1610,25 +1610,40 @@ function renderUpload(el) {
   dropZone.addEventListener('click', () => fileInput.click());
   dropZone.addEventListener('dragover', (e) => { e.preventDefault(); dropZone.classList.add('dragover'); });
   dropZone.addEventListener('dragleave', () => dropZone.classList.remove('dragover'));
-  dropZone.addEventListener('drop', (e) => { e.preventDefault(); dropZone.classList.remove('dragover'); handleFile(e.dataTransfer.files[0]); });
-  fileInput.addEventListener('change', (e) => handleFile(e.target.files[0]));
+  dropZone.addEventListener('drop', (e) => { e.preventDefault(); dropZone.classList.remove('dragover'); handleFiles(e.dataTransfer.files); });
+  fileInput.addEventListener('change', (e) => handleFiles(e.target.files));
 }
 
 window.selectedFile = null;
 window.selectedPdfData = null;
+window.fileQueue = [];
 
-function handleFile(file) {
-  if (!file || file.type !== 'application/pdf') { alert('Please select a PDF file'); return; }
-  window.selectedFile = file;
+function handleFiles(fileList) {
+  var pdfFiles = Array.from(fileList).filter(function(f) { return f.type === 'application/pdf'; });
+  if (pdfFiles.length === 0) { alert('Please select PDF file(s)'); return; }
+  window.fileQueue = pdfFiles;
+  window.selectedFile = pdfFiles[0];
   document.getElementById('drop-zone').classList.add('hidden');
   document.getElementById('file-info').classList.remove('hidden');
   document.getElementById('upload-btn').classList.remove('hidden');
-  document.getElementById('file-name').textContent = file.name;
-  document.getElementById('file-size').textContent = (file.size / 1024 / 1024).toFixed(2) + ' MB';
+  if (pdfFiles.length === 1) {
+    document.getElementById('file-name').textContent = pdfFiles[0].name;
+    document.getElementById('file-size').textContent = (pdfFiles[0].size / 1024 / 1024).toFixed(2) + ' MB';
+  } else {
+    var totalSize = pdfFiles.reduce(function(sum, f) { return sum + f.size; }, 0);
+    document.getElementById('file-name').textContent = pdfFiles.length + ' PDF files selected';
+    document.getElementById('file-size').textContent = (totalSize / 1024 / 1024).toFixed(2) + ' MB total';
+  }
+}
+
+function handleFile(file) {
+  if (!file) return;
+  handleFiles([file]);
 }
 
 window.clearFile = function() {
   window.selectedFile = null;
+  window.fileQueue = [];
   document.getElementById('drop-zone').classList.remove('hidden');
   document.getElementById('file-info').classList.add('hidden');
   document.getElementById('upload-btn').classList.add('hidden');
@@ -1636,135 +1651,131 @@ window.clearFile = function() {
 };
 
 window.processFile = async function() {
-  if (!window.selectedFile) return;
-  const btn = document.getElementById('upload-btn');
-  const progress = document.getElementById('progress-bar');
-  const fill = document.getElementById('progress-fill');
-  const result = document.getElementById('upload-result');
-  const statusEl = document.getElementById('upload-status');
+  var queue = window.fileQueue && window.fileQueue.length > 0 ? window.fileQueue : (window.selectedFile ? [window.selectedFile] : []);
+  if (queue.length === 0) return;
+  var btn = document.getElementById('upload-btn');
+  var progress = document.getElementById('progress-bar');
+  var fill = document.getElementById('progress-fill');
+  var result = document.getElementById('upload-result');
+  var statusEl = document.getElementById('upload-status');
 
   btn.disabled = true;
   btn.innerHTML = '<svg class="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg> Processing...';
   progress.classList.remove('hidden');
   function setStatus(msg) { if (statusEl) statusEl.textContent = msg; }
 
+  var allResults = [];
+
   try {
-    const arrayBuffer = await window.selectedFile.arrayBuffer();
-    fill.style.width = '20%';
-    setStatus('Reading PDF...');
+    for (var qi = 0; qi < queue.length; qi++) {
+      var currentFile = queue[qi];
+      var fileLabel = queue.length > 1 ? '[' + (qi+1) + '/' + queue.length + '] ' + currentFile.name + ': ' : '';
+      var overallBase = (qi / queue.length) * 100;
+      var fileShare = 100 / queue.length;
 
-    // Store base64 BEFORE passing to PDF.js (it detaches the ArrayBuffer)
-    const uint8 = new Uint8Array(arrayBuffer);
-    const base64 = btoa(uint8.reduce((s, b) => s + String.fromCharCode(b), ''));
+      setStatus(fileLabel + 'Reading PDF...');
+      var arrayBuffer = await currentFile.arrayBuffer();
+      fill.style.width = (overallBase + fileShare * 0.2) + '%';
 
-    // Use a copy for PDF.js since it transfers ownership
-    const pdf = await window.pdfjsLib.getDocument({ data: uint8.slice(0) }).promise;
-    fill.style.width = '30%';
+      var uint8 = new Uint8Array(arrayBuffer);
+      var base64 = btoa(uint8.reduce(function(s, b) { return s + String.fromCharCode(b); }, ''));
+      var pdf = await window.pdfjsLib.getDocument({ data: uint8.slice(0) }).promise;
+      fill.style.width = (overallBase + fileShare * 0.3) + '%';
 
-    const pages = [];
-    let ocrUsed = false;
-    for (let i = 1; i <= pdf.numPages; i++) {
-      setStatus('Analyzing page ' + i + ' of ' + pdf.numPages + '...');
-      const page = await pdf.getPage(i);
+      var pages = [];
+      var ocrUsed = false;
+      for (var i = 1; i <= pdf.numPages; i++) {
+        setStatus(fileLabel + 'Analyzing page ' + i + ' of ' + pdf.numPages + '...');
+        var page = await pdf.getPage(i);
 
-      // Step 1: Try to get text from the PDF text layer
-      const textContent = await page.getTextContent();
-      let text = textContent.items.map(item => item.str).join(' ');
-      let textSource = 'text-layer';
+        var textContent = await page.getTextContent();
+        var text = textContent.items.map(function(item) { return item.str; }).join(' ');
+        var textSource = 'text-layer';
 
-      // Step 2: If text layer is empty/minimal, run OCR
-      if (pageNeedsOCR(text)) {
-        setStatus('Page ' + i + ': No text layer found — running OCR (this may take a moment)...');
-        try {
-          const ocrCanvas = await renderPageToCanvas(page, 2);
-          const ocrText = await ocrFromCanvas(ocrCanvas, (pct) => {
-            const baseProgress = 30 + ((i - 1) / pdf.numPages) * 65;
-            const pageProgress = (pct * 65) / pdf.numPages;
-            fill.style.width = Math.min(95, baseProgress + pageProgress) + '%';
-            setStatus('Page ' + i + ': OCR ' + Math.round(pct * 100) + '%...');
-          });
-          if (ocrText && ocrText.length > text.length) {
-            text = ocrText;
-            textSource = 'ocr';
-            ocrUsed = true;
-            console.log('[OCR] Page ' + i + ': extracted ' + text.length + ' chars via OCR');
+        if (pageNeedsOCR(text)) {
+          setStatus(fileLabel + 'Page ' + i + ': Running OCR...');
+          try {
+            var ocrCanvas = await renderPageToCanvas(page, 2);
+            var ocrText = await ocrFromCanvas(ocrCanvas, function(pct) {
+              var bp = overallBase + fileShare * (0.3 + ((i - 1) / pdf.numPages) * 0.65);
+              var pp = (pct * fileShare * 0.65) / pdf.numPages;
+              fill.style.width = Math.min(overallBase + fileShare * 0.95, bp + pp) + '%';
+              setStatus(fileLabel + 'Page ' + i + ': OCR ' + Math.round(pct * 100) + '%...');
+            });
+            if (ocrText && ocrText.length > text.length) {
+              text = ocrText;
+              textSource = 'ocr';
+              ocrUsed = true;
+            }
+          } catch (ocrErr) {
+            console.error('[OCR] Page ' + i + ' OCR failed:', ocrErr);
           }
-        } catch (ocrErr) {
-          console.error('[OCR] Page ' + i + ' OCR failed:', ocrErr);
         }
+
+        setStatus(fileLabel + 'Page ' + i + ': Classifying & extracting...');
+        var classification = window.classifyPage(text);
+        var extractedData = classification.typeId !== 'unclassified' ? window.extractData(text, classification.typeId) : {};
+        var pageText = text.substring(0, 5000);
+        var nouns = identifyNouns(pageText, extractedData);
+        pages.push({ pageNum: i, text: pageText, classification: classification, extractedData: extractedData, nouns: nouns, textSource: textSource });
+        fill.style.width = (overallBase + fileShare * (0.3 + (i / pdf.numPages) * 0.65)) + '%';
       }
 
-      setStatus('Page ' + i + ': Classifying & extracting...');
-      const classification = window.classifyPage(text);
-      const extractedData = classification.typeId !== 'unclassified' ? window.extractData(text, classification.typeId) : {};
+      var doc = {
+        id: 'doc_' + Date.now() + '_' + Math.random().toString(36).substr(2, 6),
+        filename: currentFile.name,
+        uploadDate: new Date().toISOString(),
+        totalPages: pdf.numPages,
+        fileSize: currentFile.size,
+        pages: pages
+      };
 
-      const pageText = text.substring(0, 5000);
-      const nouns = identifyNouns(pageText, extractedData);
-      pages.push({ pageNum: i, text: pageText, classification, extractedData, nouns, textSource });
-      fill.style.width = (30 + (i / pdf.numPages) * 65) + '%';
+      await savePdf(doc.id, base64);
+      window.appStore.documents.push(doc);
+      saveStore(window.appStore);
+      allResults.push({ doc: doc, pages: pages, ocrUsed: ocrUsed });
+      fill.style.width = ((qi + 1) / queue.length * 100) + '%';
     }
-    if (ocrUsed) setStatus('OCR complete. Finalizing...');
-
-    const doc = {
-      id: 'doc_' + Date.now() + '_' + Math.random().toString(36).substr(2, 6),
-      filename: window.selectedFile.name,
-      uploadDate: new Date().toISOString(),
-      totalPages: pdf.numPages,
-      fileSize: window.selectedFile.size,
-      pages
-    };
-
-    // Save PDF binary to IndexedDB (not localStorage)
-    await savePdf(doc.id, base64);
-
-    window.appStore.documents.push(doc);
-    saveStore(window.appStore);
-    fill.style.width = '100%';
 
     setStatus('');
-    result.innerHTML = `
-      <div class="bg-white rounded-xl shadow-sm border border-green-200 p-5 mt-4 fade-in">
-        <div class="flex items-center gap-3 mb-4">
-          <svg class="w-6 h-6 text-green-600" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
-          <div>
-            <p class="font-semibold text-green-800">Document Processed Successfully</p>
-            <p class="text-sm text-green-600">${doc.filename} - ${doc.totalPages} pages analyzed${ocrUsed ? ' (OCR used for scanned pages)' : ''}</p>
-          </div>
-        </div>
-        <div class="space-y-2">
-          ${pages.map(p => {
-            const fieldCount = Object.keys(p.extractedData).length;
-            const fieldList = Object.values(p.extractedData).map(f => f.label + ': ' + f.value).slice(0, 3);
-            return `
-            <div class="bg-gray-50 rounded-lg p-3">
-              <div class="flex items-center justify-between">
-                <div class="flex items-center gap-3">
-                  <span class="w-7 h-7 bg-green-100 rounded flex items-center justify-center text-xs font-bold text-green-700">${p.pageNum}</span>
-                  <div>
-                    <p class="text-sm font-medium text-gray-900">${p.classification.typeName}
-                      ${p.textSource === 'ocr' ? '<span class="ml-1.5 inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-medium bg-blue-100 text-blue-700">OCR</span>' : ''}
-                    </p>
-                    <p class="text-xs text-gray-400">${fieldCount} fields extracted</p>
-                  </div>
-                </div>
-                ${p.classification.typeId !== 'unclassified'
+    result.innerHTML = allResults.map(function(r) {
+      var doc = r.doc; var pages = r.pages; var ocrUsed = r.ocrUsed;
+      return '<div class="bg-white rounded-xl shadow-sm border border-green-200 p-5 mt-4 fade-in">' +
+        '<div class="flex items-center gap-3 mb-4">' +
+          '<svg class="w-6 h-6 text-green-600" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>' +
+          '<div><p class="font-semibold text-green-800">Document Processed Successfully</p>' +
+          '<p class="text-sm text-green-600">' + doc.filename + ' - ' + doc.totalPages + ' pages analyzed' + (ocrUsed ? ' (OCR used)' : '') + '</p></div>' +
+        '</div>' +
+        '<div class="space-y-2">' +
+          pages.map(function(p) {
+            var fieldCount = Object.keys(p.extractedData).length;
+            var fieldList = Object.values(p.extractedData).map(function(f) { return f.label + ': ' + f.value; }).slice(0, 3);
+            return '<div class="bg-gray-50 rounded-lg p-3">' +
+              '<div class="flex items-center justify-between">' +
+                '<div class="flex items-center gap-3">' +
+                  '<span class="w-7 h-7 bg-green-100 rounded flex items-center justify-center text-xs font-bold text-green-700">' + p.pageNum + '</span>' +
+                  '<div><p class="text-sm font-medium text-gray-900">' + p.classification.typeName +
+                    (p.textSource === 'ocr' ? ' <span class="ml-1.5 inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-medium bg-blue-100 text-blue-700">OCR</span>' : '') +
+                  '</p><p class="text-xs text-gray-400">' + fieldCount + ' fields extracted</p></div>' +
+                '</div>' +
+                (p.classification.typeId !== 'unclassified'
                   ? '<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">' + (p.classification.confidence*100).toFixed(0) + '%</span>'
-                  : '<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">Needs Training</span>'}
-              </div>
-              ${fieldCount > 0 ? '<div class="mt-2 ml-10 space-y-0.5">' + fieldList.map(f =>
-                '<p class="text-[11px] text-gray-500">' + f + '</p>'
-              ).join('') + (fieldCount > 3 ? '<p class="text-[10px] text-gray-400">+' + (fieldCount - 3) + ' more fields</p>' : '') + '</div>' : ''}
-            </div>`;
-          }).join('')}
-        </div>
-        <div class="flex gap-3 mt-4">
-          <button onclick="navigate('document-detail','${doc.id}')" class="flex-1 bg-brand-600 hover:bg-brand-700 text-white font-medium py-2 rounded-lg text-sm transition-colors">View Details</button>
-          <button onclick="clearFile();renderUpload(document.getElementById('main-content'))" class="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-700 font-medium py-2 rounded-lg text-sm transition-colors">Upload Another</button>
-        </div>
-      </div>
-    `;
+                  : '<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">Needs Training</span>') +
+              '</div>' +
+              (fieldCount > 0 ? '<div class="mt-2 ml-10 space-y-0.5">' + fieldList.map(function(f) {
+                return '<p class="text-[11px] text-gray-500">' + f + '</p>';
+              }).join('') + (fieldCount > 3 ? '<p class="text-[10px] text-gray-400">+' + (fieldCount - 3) + ' more fields</p>' : '') + '</div>' : '') +
+            '</div>';
+          }).join('') +
+        '</div>' +
+      '</div>';
+    }).join('') +
+    '<div class="flex gap-3 mt-4">' +
+      '<button onclick="navigate(\'documents\')" class="flex-1 bg-brand-600 hover:bg-brand-700 text-white font-medium py-2 rounded-lg text-sm transition-colors">View All Documents</button>' +
+      '<button onclick="clearFile();renderUpload(document.getElementById(\'main-content\'))" class="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-700 font-medium py-2 rounded-lg text-sm transition-colors">Upload More</button>' +
+    '</div>';
   } catch (err) {
-    result.innerHTML = `<div class="bg-red-50 text-red-600 rounded-lg p-3 mt-4 text-sm">${err.message}</div>`;
+    result.innerHTML = '<div class="bg-red-50 text-red-600 rounded-lg p-3 mt-4 text-sm">' + err.message + '</div>';
   }
 
   btn.classList.add('hidden');
