@@ -1320,7 +1320,22 @@ function renderCompSanctions(el, results) {
       var sevBg = sc.severity === 'high' ? '#fef2f2' : '#fefce8';
       html += '<tr class="border-b border-gray-50">';
       html += '<td class="py-2.5 px-3 font-medium text-gray-900">' + sc.country + '</td>';
-      html += '<td class="py-2.5 px-3 text-gray-600 text-xs">' + sc.matchedText + '</td>';
+      // Clickable "Matched In" — each occurrence is a link to PDF preview with highlight
+      html += '<td class="py-2.5 px-3 text-xs">';
+      if (sc.occurrences && sc.occurrences.length > 0) {
+        for (var oi = 0; oi < sc.occurrences.length; oi++) {
+          var occ = sc.occurrences[oi];
+          var hlText = (sc.matchedText || sc.country || '').replace(/'/g, "\\'");
+          html += '<button onclick="window.showPdfPreviewModal(\'' + occ.docId + '\',' + (occ.pageNum||1) + ',\'' + hlText + '\')" class="inline-flex items-center gap-1 px-2 py-1 rounded bg-indigo-50 border border-indigo-200 text-[10px] text-indigo-700 hover:bg-indigo-100 hover:border-indigo-400 transition-colors cursor-pointer mb-1 mr-1" title="Click to preview in document">';
+          html += '<svg class="w-3 h-3" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z"/></svg>';
+          html += '<span class="font-medium">' + sc.matchedText + '</span>';
+          html += '<span class="text-indigo-400">— ' + (occ.docName||'Document').replace(/(.{20}).+/,'$1…') + ' P' + (occ.pageNum||1) + '</span>';
+          html += '</button>';
+        }
+      } else {
+        html += '<span class="text-gray-600">' + sc.matchedText + '</span>';
+      }
+      html += '</td>';
       html += '<td class="py-2.5 px-3">';
       for (var l = 0; l < sc.lists.length; l++) {
         var listColor = sc.lists[l].includes('FATF Black') ? '#ef4444' : (sc.lists[l].includes('OFAC') ? '#dc2626' : '#eab308');
@@ -2955,7 +2970,7 @@ async function renderPdfPage(doc, pageNum) {
 
 // ===================== PDF Preview Modal =====================
 window._previewPdfCache = { docId: null, pdf: null };
-window.showPdfPreviewModal = async function(docId, pageNum) {
+window.showPdfPreviewModal = async function(docId, pageNum, highlightText) {
   // Find document info
   var doc = window.appStore.documents.find(function(d){ return d.id === docId; });
   if (!doc) { console.error('Document not found:', docId); return; }
@@ -2964,6 +2979,9 @@ window.showPdfPreviewModal = async function(docId, pageNum) {
   var existing = document.getElementById('pdf-preview-modal');
   if (existing) existing.remove();
 
+  // Highlight badge in header
+  var highlightBadge = highlightText ? '<span style="font-size:10px;color:#b45309;background:#fef3c7;padding:2px 8px;border-radius:4px;font-weight:600">Highlighting: ' + highlightText.replace(/</g,'&lt;') + '</span>' : '';
+
   // Create modal
   var modal = document.createElement('div');
   modal.id = 'pdf-preview-modal';
@@ -2971,17 +2989,18 @@ window.showPdfPreviewModal = async function(docId, pageNum) {
   modal.innerHTML = '<div onclick="document.getElementById(\'pdf-preview-modal\').remove()" style="position:absolute;inset:0;background:rgba(0,0,0,0.6);backdrop-filter:blur(2px)"></div>' +
     '<div style="position:relative;background:white;border-radius:12px;box-shadow:0 25px 50px rgba(0,0,0,0.25);max-width:850px;width:95%;max-height:90vh;display:flex;flex-direction:column;overflow:hidden">' +
       '<div style="display:flex;align-items:center;justify-content:space-between;padding:12px 16px;border-bottom:1px solid #e5e7eb;flex-shrink:0">' +
-        '<div style="display:flex;align-items:center;gap:8px">' +
+        '<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">' +
           '<svg style="width:16px;height:16px;color:#6b7280" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z"/></svg>' +
           '<span style="font-size:13px;font-weight:600;color:#111827">' + doc.filename + '</span>' +
           '<span style="font-size:11px;color:#6b7280;background:#f3f4f6;padding:2px 8px;border-radius:4px">Page ' + pageNum + ' of ' + doc.totalPages + '</span>' +
+          highlightBadge +
         '</div>' +
         '<div style="display:flex;align-items:center;gap:6px">' +
           '<button onclick="window.navigateFromPreview(\'' + docId + '\',' + pageNum + ')" style="font-size:11px;color:#4f46e5;background:#eef2ff;border:1px solid #c7d2fe;padding:4px 10px;border-radius:6px;cursor:pointer;font-weight:500">Open Full View</button>' +
           '<button onclick="document.getElementById(\'pdf-preview-modal\').remove()" style="width:28px;height:28px;display:flex;align-items:center;justify-content:center;border-radius:6px;border:1px solid #e5e7eb;background:white;cursor:pointer;color:#6b7280;font-size:16px">&times;</button>' +
         '</div>' +
       '</div>' +
-      '<div id="pdf-preview-body" style="flex:1;overflow:auto;padding:16px;display:flex;align-items:flex-start;justify-content:center;background:#f9fafb">' +
+      '<div id="pdf-preview-body" style="flex:1;overflow:auto;padding:16px;display:flex;flex-direction:column;align-items:center;background:#f9fafb">' +
         '<div style="display:flex;flex-direction:column;align-items:center;gap:8px;padding:40px"><div class="spinner" style="width:32px;height:32px;border:3px solid #e5e7eb;border-top-color:#4f46e5;border-radius:50%;animation:spin 0.8s linear infinite"></div><span style="font-size:12px;color:#6b7280">Loading page...</span></div>' +
       '</div>' +
     '</div>';
@@ -3017,9 +3036,54 @@ window.showPdfPreviewModal = async function(docId, pageNum) {
     canvas.style.boxShadow = '0 1px 3px rgba(0,0,0,0.1)';
     var ctx = canvas.getContext('2d');
     await page.render({ canvasContext: ctx, viewport: viewport }).promise;
+
+    // Highlight matching text on the rendered canvas
+    var highlightRects = [];
+    if (highlightText) {
+      try {
+        var textContent = await page.getTextContent();
+        var searchLower = highlightText.toLowerCase();
+        for (var ti = 0; ti < textContent.items.length; ti++) {
+          var item = textContent.items[ti];
+          if (item.str && item.str.toLowerCase().includes(searchLower)) {
+            // Transform: [scaleX, skewX, skewY, scaleY, translateX, translateY]
+            var tx = window.pdfjsLib.Util.transform(viewport.transform, item.transform);
+            var x = tx[4];
+            var y = tx[5];
+            // Estimate width from font size and string length
+            var fontSize = Math.sqrt(item.transform[0]*item.transform[0] + item.transform[1]*item.transform[1]);
+            var itemWidth = item.width * scale;
+            var itemHeight = fontSize * scale;
+            highlightRects.push({ x: x, y: y - itemHeight, w: itemWidth, h: itemHeight + 4 });
+          }
+        }
+        // Draw highlight overlays
+        for (var hi = 0; hi < highlightRects.length; hi++) {
+          var hr = highlightRects[hi];
+          ctx.fillStyle = 'rgba(251, 191, 36, 0.35)';
+          ctx.fillRect(hr.x, hr.y, hr.w, hr.h);
+          ctx.strokeStyle = 'rgba(245, 158, 11, 0.8)';
+          ctx.lineWidth = 2;
+          ctx.strokeRect(hr.x, hr.y, hr.w, hr.h);
+        }
+      } catch(hlErr) {
+        console.warn('Text highlight failed:', hlErr);
+      }
+    }
+
     var body = document.getElementById('pdf-preview-body');
-    if (body) body.innerHTML = '';
-    if (body) body.appendChild(canvas);
+    if (body) {
+      body.innerHTML = '';
+      body.appendChild(canvas);
+      // Show notice when highlight was requested but text not found in PDF
+      if (highlightText && highlightRects && highlightRects.length === 0) {
+        var notice = document.createElement('div');
+        notice.style.cssText = 'margin-top:8px;padding:8px 14px;background:#fef3c7;border:1px solid #fde68a;border-radius:8px;display:flex;align-items:flex-start;gap:8px;width:100%;max-width:100%;box-sizing:border-box';
+        notice.innerHTML = '<svg style="width:16px;height:16px;color:#d97706;flex-shrink:0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z"/></svg>' +
+          '<span style="font-size:11px;color:#92400e"><b>"' + highlightText.replace(/</g,'&lt;') + '"</b> was found in extracted data fields, not in visible PDF text. This value may have been manually added or parsed from document metadata.</span>';
+        body.appendChild(notice);
+      }
+    }
   } catch(err) {
     console.error('Preview render error:', err);
     var body = document.getElementById('pdf-preview-body');
