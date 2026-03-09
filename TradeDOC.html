@@ -704,25 +704,28 @@ function runComplianceChecks() {
       }
     }
   }
-  // Also check extracted address/country fields directly
+  // Also check extracted address/country fields directly — scan ALL fields by key and label
+  var locationLabelPattern = /\b(country|port|origin|destination|loading|discharge|location|city|address|region|place)\b/i;
+  var knownLocationKeys = ['countryOfOrigin','portOfLoading','portOfDischarge','location'];
   for (const doc of docs) {
     for (const page of doc.pages) {
       const ed = page.extractedData || {};
-      const fieldsToCheck = ['countryOfOrigin','portOfLoading','portOfDischarge','location'];
-      for (const fn of fieldsToCheck) {
-        if (ed[fn]) {
-          for (const country of SANCTIONED_COUNTRIES_ALL) {
-            if (ed[fn].value.toLowerCase().includes(country.toLowerCase())) {
-              const already = results.sanctionedCountries.find(function(s){return s.country===country && s.matchedText===ed[fn].value;});
-              if (!already) {
-                const lists = [];
-                if (SANCTIONED_COUNTRIES.fatf_blacklist.some(function(c){return c.toLowerCase()===country.toLowerCase();})) lists.push('FATF Black List');
-                if (SANCTIONED_COUNTRIES.fatf_greylist.some(function(c){return c.toLowerCase()===country.toLowerCase();})) lists.push('FATF Grey List');
-                if (SANCTIONED_COUNTRIES.ofac.some(function(c){return c.toLowerCase()===country.toLowerCase();})) lists.push('OFAC');
-                if (SANCTIONED_COUNTRIES.eu.some(function(c){return c.toLowerCase()===country.toLowerCase();})) lists.push('EU Sanctions');
-                if (SANCTIONED_COUNTRIES.un.some(function(c){return c.toLowerCase()===country.toLowerCase();})) lists.push('UN Sanctions');
-                results.sanctionedCountries.push({ country:country, matchedText:ed[fn].value, lists:lists, severity:lists.includes('FATF Black List')||lists.includes('OFAC')?'high':'medium', occurrences:[{docId:doc.id,docName:doc.filename,pageNum:page.pageNum,typeName:page.classification.typeName}] });
-              }
+      for (const [fn, fieldData] of Object.entries(ed)) {
+        if (!fieldData || !fieldData.value) continue;
+        // Check by known key OR by label matching location/country keywords
+        var isLocationField = knownLocationKeys.indexOf(fn) !== -1 || locationLabelPattern.test(fieldData.label || '');
+        if (!isLocationField) continue;
+        for (const country of SANCTIONED_COUNTRIES_ALL) {
+          if (fieldData.value.toLowerCase().includes(country.toLowerCase())) {
+            const already = results.sanctionedCountries.find(function(s){return s.country===country && s.matchedText===fieldData.value;});
+            if (!already) {
+              const lists = [];
+              if (SANCTIONED_COUNTRIES.fatf_blacklist.some(function(c){return c.toLowerCase()===country.toLowerCase();})) lists.push('FATF Black List');
+              if (SANCTIONED_COUNTRIES.fatf_greylist.some(function(c){return c.toLowerCase()===country.toLowerCase();})) lists.push('FATF Grey List');
+              if (SANCTIONED_COUNTRIES.ofac.some(function(c){return c.toLowerCase()===country.toLowerCase();})) lists.push('OFAC');
+              if (SANCTIONED_COUNTRIES.eu.some(function(c){return c.toLowerCase()===country.toLowerCase();})) lists.push('EU Sanctions');
+              if (SANCTIONED_COUNTRIES.un.some(function(c){return c.toLowerCase()===country.toLowerCase();})) lists.push('UN Sanctions');
+              results.sanctionedCountries.push({ country:country, matchedText:fieldData.value, lists:lists, severity:lists.includes('FATF Black List')||lists.includes('OFAC')?'high':'medium', occurrences:[{docId:doc.id,docName:doc.filename,pageNum:page.pageNum,typeName:page.classification?page.classification.typeName:'Unknown'}] });
             }
           }
         }
@@ -3137,6 +3140,19 @@ function detectIndividuals(text) {
 }
 
 // Map extracted data field names to noun categories
+// Infer noun category from a user-provided field label (for manual fields)
+function inferNounCategoryFromLabel(label) {
+  var lbl = label.toLowerCase();
+  // Location / country / port
+  if (/\b(country|port|origin|destination|loading|discharge|location|city|state|province|place|address|region)\b/.test(lbl)) return 'location';
+  // Entity / corporate names
+  if (/\b(bank|company|buyer|seller|shipper|consignee|beneficiary|applicant|exporter|importer|agent|inspector|notify|party|sender|recipient)\b/.test(lbl)) return 'entity';
+  // Vessel
+  if (/\b(vessel|ship|carrier|voyage)\b/.test(lbl)) return 'vessel';
+  // Default
+  return 'number';
+}
+
 const FIELD_TO_NOUN_CATEGORY = {
   // Entity Names (corporates, banks, individuals)
   seller: 'entity', buyer: 'entity', shipper: 'entity', consignee: 'entity',
@@ -3185,7 +3201,12 @@ function nounsFromExtractedData(extractedData) {
   const nouns = [];
   let idx = 0;
   for (const [fieldName, fieldData] of Object.entries(extractedData)) {
-    const category = FIELD_TO_NOUN_CATEGORY[fieldName] || 'number';
+    // For known keys use FIELD_TO_NOUN_CATEGORY; for manual/goods keys, infer from label
+    let category = FIELD_TO_NOUN_CATEGORY[fieldName];
+    if (!category && fieldData.label) {
+      category = inferNounCategoryFromLabel(fieldData.label);
+    }
+    if (!category) category = 'number';
     const value = (typeof fieldData.value === 'string') ? fieldData.value.trim() : String(fieldData.value);
     if (value.length < 2) continue;
     nouns.push({
@@ -3660,9 +3681,9 @@ window.saveNewExtractedField = function(fieldType) {
   const key = 'manual_' + Date.now();
   page.extractedData[key] = { label: label, value: value };
 
-  // Add corresponding noun
+  // Add corresponding noun — infer category from label text
   if (!page.nouns) page.nouns = [];
-  const category = FIELD_TO_NOUN_CATEGORY[key] || 'number';
+  const category = inferNounCategoryFromLabel(label);
   page.nouns.push({
     id: 'ne_' + Date.now() + '_m',
     text: value,
